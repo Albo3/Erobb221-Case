@@ -136,7 +136,8 @@ app.post('/api/cases', async (c) => {
             // Updated validation: check name and color (required)
             if (!item.name || typeof item.name !== 'string' || item.name.trim() === '' ||
                 !item.color || typeof item.color !== 'string' || item.color.trim() === '') {
-                return c.json({ error: 'Each item must have a valid name and color.' }, 400);
+                // Corrected error message
+                return c.json({ error: `Each item must have a valid name and color. Failed item: ${JSON.stringify(item)}` }, 400);
             }
             // Optional field validation
             if (item.image_url && typeof item.image_url !== 'string') {
