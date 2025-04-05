@@ -1,0 +1,47 @@
+.case-opener-viewport {
+  width: 100%;
+  max-width: 600px; /* Adjust as needed */
+  height: 120px; /* Adjust height */
+  overflow: hidden;
+  position: relative;
+  border: 2px solid var(--border-dark);
+  background-color: var(--secondary-bg);
+  margin: 20px auto; /* Center the viewport */
+}
+
+.case-opener-reel {
+  display: flex;
+  height: 100%;
+  /* Transition will be applied via inline style in the component */
+}
+
+.case-opener-item {
+  min-width: 90px; /* Width of each item */
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--border-dark);
+  border-left: 1px solid var(--border-dark);
+  margin: 0 5px; /* Margin between items */
+  padding: 10px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 0.9em;
+  background-color: var(--bg); /* Background for items */
+  box-sizing: border-box;
+  white-space: normal; /* Allow text wrapping */
+  overflow-wrap: break-word;
+}
+
+.case-opener-marker {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px; /* Width of the marker */
+  height: 100%;
+  background-color: var(--accent); /* Use accent color */
+  z-index: 2; /* Ensure marker is above items */
+  box-shadow: 0 0 5px var(--accent);
+}
