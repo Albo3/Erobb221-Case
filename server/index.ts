@@ -23,7 +23,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     case_id INTEGER NOT NULL,
     name TEXT NOT NULL,
-    weight INTEGER NOT NULL,
+    // weight INTEGER NOT NULL, -- Removed weight column
     color TEXT NOT NULL,
     FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE
   );
@@ -101,9 +101,9 @@ app.get('/api/cases/:id', (c) => {
 interface CreateCaseRequestBody {
     name: string;
     description?: string; // Optional description
-    items: Array<{
+    items: Array<{ // Backend now expects items without weight
         name: string;
-        weight: number;
+        // weight: number; // Removed weight
         color: string;
     }>;
 }
@@ -122,10 +122,11 @@ app.post('/api/cases', async (c) => {
             return c.json({ error: 'Case must contain at least one item.' }, 400);
         }
         for (const item of body.items) {
+            // Updated validation: check only name and color
             if (!item.name || typeof item.name !== 'string' || item.name.trim() === '' ||
-                !item.weight || typeof item.weight !== 'number' || item.weight <= 0 ||
+                // !item.weight || typeof item.weight !== 'number' || item.weight <= 0 || // Removed weight validation
                 !item.color || typeof item.color !== 'string' || item.color.trim() === '') {
-                return c.json({ error: 'Each item must have a valid name, positive weight, and color.' }, 400);
+                return c.json({ error: 'Each item must have a valid name and color.' }, 400);
             }
         }
         // --- End Validation ---
@@ -133,7 +134,8 @@ app.post('/api/cases', async (c) => {
 
         // --- Database Insertion (Transaction) ---
         const insertCaseStmt = db.prepare('INSERT INTO cases (name, description) VALUES (?, ?) RETURNING id');
-        const insertItemStmt = db.prepare('INSERT INTO case_items (case_id, name, weight, color) VALUES (?, ?, ?, ?)');
+        // Updated statement: removed weight column
+        const insertItemStmt = db.prepare('INSERT INTO case_items (case_id, name, color) VALUES (?, ?, ?)');
 
         let caseId: number | null = null;
         try {
@@ -152,7 +154,8 @@ app.post('/api/cases', async (c) => {
             caseId = caseResult.id; // Now TS knows caseResult.id is a number
 
             for (const item of body.items) {
-                insertItemStmt.run(caseId, item.name.trim(), item.weight, item.color.trim());
+                // Updated run call: removed weight argument
+                insertItemStmt.run(caseId, item.name.trim(), item.color.trim());
             }
 
             db.exec('COMMIT');

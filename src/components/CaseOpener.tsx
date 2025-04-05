@@ -29,6 +29,16 @@ interface CaseInfo {
 const REEL_ITEM_WIDTH = 100; // Width of each item in pixels + margin
 const SPIN_DURATION = 3000; // Duration of spin animation in ms
 
+// Define standard CS:GO rarity colors and names (copied from CreateCaseForm)
+const RARITY_COLORS = [
+    { name: 'Consumer Grade', value: '#b0c3d9' },    // White/Grayish
+    { name: 'Industrial Grade', value: '#5e98d9' },  // Light Blue
+    { name: 'Mil-Spec', value: '#4b69ff' },          // Blue
+    { name: 'Restricted', value: '#8847ff' },        // Purple
+    { name: 'Classified', value: '#d32ce6' },        // Pink
+    { name: 'Covert', value: '#eb4b4b' },            // Red
+    { name: 'Exceedingly Rare', value: '#ffd700' },  // Gold (Knives/Gloves)
+];
 
 function CaseOpener() {
   const [isSpinning, setIsSpinning] = useState(false);
@@ -123,27 +133,55 @@ function CaseOpener() {
 
   }, [selectedCaseId]); // Dependency array includes selectedCaseId
 
-  // Function to get a weighted random item based on CURRENTLY loaded case data
+  // Function to get a random item based on rarity distribution (color)
   const getRandomItem = (): CaseItem | null => {
       if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
 
-      const totalWeight = currentCaseData.items.reduce((sum, item) => sum + item.weight, 0);
-      if (totalWeight <= 0) {
-           const firstItem = currentCaseData.items[0];
-           return firstItem ?? null;
-      }
+      // --- Determine Odds Based on Rarity Distribution ---
+      // This is a simplified example. Real CS:GO odds are complex and not public.
+      // We'll assign higher chances to lower rarities based on their index in RARITY_COLORS.
+      const rarityWeights: { [color: string]: number } = {
+          [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, // Consumer Grade
+          [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,  // Industrial Grade
+          [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  // Mil-Spec
+          [RARITY_COLORS[3]?.value ?? '#8847ff']: 10,  // Restricted
+          [RARITY_COLORS[4]?.value ?? '#d32ce6']: 5,   // Classified
+          [RARITY_COLORS[5]?.value ?? '#eb4b4b']: 2,   // Covert
+          [RARITY_COLORS[6]?.value ?? '#ffd700']: 1,   // Exceedingly Rare
+      };
 
-      let randomNum = Math.random() * totalWeight;
-      for (const item of currentCaseData.items) {
-          if (randomNum < item.weight) {
-              return item;
+      const weightedList: CaseItem[] = [];
+      currentCaseData.items.forEach(item => {
+          const weight = rarityWeights[item.color] || 1; // Default weight if color not found
+          for (let i = 0; i < weight; i++) {
+              weightedList.push(item);
           }
-          randomNum -= item.weight;
-      }
+      });
 
-      // Fallback for potential floating point issues
-      const lastItem = currentCaseData.items[currentCaseData.items.length - 1];
-      return lastItem ?? null;
+      if (weightedList.length === 0) return currentCaseData.items[0] ?? null; // Fallback
+
+      const randomIndex = Math.floor(Math.random() * weightedList.length);
+      return weightedList[randomIndex] ?? null; // Return selected item or null
+      // --- End Odds Logic ---
+
+
+      // --- Original Weight-Based Logic (Removed) ---
+      // const totalWeight = currentCaseData.items.reduce((sum, item) => sum + item.weight, 0);
+      // if (totalWeight <= 0) {
+      //      const firstItem = currentCaseData.items[0];
+      //      return firstItem ?? null;
+      // }
+      // let randomNum = Math.random() * totalWeight;
+      // for (const item of currentCaseData.items) {
+      //     if (randomNum < item.weight) {
+      //         return item;
+      //     }
+      //     randomNum -= item.weight;
+      // }
+
+      // Fallback should ideally not be reached with the weighted list approach
+      // const lastItem = currentCaseData.items[currentCaseData.items.length - 1];
+      // return lastItem ?? null;
   };
 
   const startSpin = () => {

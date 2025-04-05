@@ -5,8 +5,8 @@ import StyledButton from './StyledButton';
 interface CaseItemInput {
   id: number; // For React key prop
   name: string;
-  weight: string; // Use string for input, parse later
-  color: string; // Store the color value (e.g., 'gray', 'blue')
+  // weight: string; // Removed weight input
+  color: string; // Store the color value (e.g., 'Mil-Spec Blue')
 }
 
 // Define the structure for the case being created
@@ -16,31 +16,35 @@ interface CaseDefinition {
   items: CaseItemInput[];
 }
 
-// Define standard rarity colors
+// Define standard CS:GO rarity colors and names
 const RARITY_COLORS = [
-  { name: 'Gray (Common)', value: 'gray' },
-  { name: 'Blue (Uncommon)', value: 'blue' },
-  { name: 'Purple (Rare)', value: 'purple' },
-  { name: 'Pink (Mythical)', value: 'pink' },
-  { name: 'Red (Legendary)', value: 'red' },
-  { name: 'Gold (Ancient)', value: 'gold' },
+    { name: 'Consumer Grade', value: '#b0c3d9' },    // White/Grayish
+    { name: 'Industrial Grade', value: '#5e98d9' },  // Light Blue
+    { name: 'Mil-Spec', value: '#4b69ff' },          // Blue
+    { name: 'Restricted', value: '#8847ff' },        // Purple
+    { name: 'Classified', value: '#d32ce6' },        // Pink
+    { name: 'Covert', value: '#eb4b4b' },            // Red
+    { name: 'Exceedingly Rare', value: '#ffd700' },  // Gold (Knives/Gloves)
 ];
 
 function CreateCaseForm() {
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemInput[]>([
-    // Start with one empty item row, default color to gray
-    { id: Date.now(), name: '', weight: '', color: RARITY_COLORS[0]?.value ?? 'gray' },
+    // Start with one empty item row, default color to Consumer Grade
+    { id: Date.now(), name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' },
   ]);
 
-  // Calculate total weight using useMemo for efficiency
-  const totalWeight = useMemo(() => {
-    return items.reduce((sum, item) => {
-      const weight = parseInt(item.weight, 10);
-      return sum + (isNaN(weight) || weight <= 0 ? 0 : weight);
-    }, 0);
-  }, [items]); // Recalculate only when items change
+  // Calculate odds based on item counts per rarity
+  const itemCounts = useMemo(() => {
+      const counts: { [color: string]: number } = {};
+      for (const item of items) {
+          counts[item.color] = (counts[item.color] || 0) + 1;
+      }
+      return counts;
+  }, [items]);
+
+  const totalItems = useMemo(() => items.length, [items]);
 
   // Function to handle changes in item inputs
   const handleItemChange = (index: number, field: keyof Omit<CaseItemInput, 'id'>, value: string) => {
@@ -55,8 +59,8 @@ function CreateCaseForm() {
 
   // Function to add a new empty item row
   const addItem = () => {
-    // Default new item color to gray
-    setItems([...items, { id: Date.now(), name: '', weight: '', color: RARITY_COLORS[0]?.value ?? 'gray' }]);
+    // Default new item color to Consumer Grade
+    setItems([...items, { id: Date.now(), name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' }]);
   };
 
   // Function to remove an item row
@@ -74,20 +78,23 @@ function CreateCaseForm() {
       alert('Please enter a case name.');
       return;
     }
-    const validItems = items.filter(item => item.name.trim() && item.weight.trim() && !isNaN(parseInt(item.weight)) && parseInt(item.weight) > 0 && item.color.trim());
+    // Validate items based on name and color only now
+    const validItems = items.filter(item => item.name.trim() && item.color.trim());
 
     if (validItems.length === 0) {
-        alert('Please add at least one valid item with name, positive weight, and color.');
+        alert('Please add at least one valid item with name and color.');
         return;
     }
 
-    // Format data for JSON output
+    // Format data for JSON output - NO WEIGHT SENT
+    // NOTE: Backend /api/cases POST endpoint will need adjustment
+    // as it currently expects 'weight'. For now, this save will likely fail.
     const outputData = {
       name: caseName.trim(),
       description: caseDescription.trim(),
-      items: validItems.map(({ name, weight, color }) => ({
+      items: validItems.map(({ name, color }) => ({
         name: name.trim(),
-        weight: parseInt(weight, 10), // Parse weight to number
+        // weight: ??? // Decide how/if to handle weight/odds on backend
         color: color.trim(),
       })),
     };
@@ -121,7 +128,8 @@ function CreateCaseForm() {
       // Optionally reset the form here
       setCaseName('');
       setCaseDescription('');
-      setItems([{ id: Date.now(), name: '', weight: '', color: '' }]);
+      // Reset form with default item
+      setItems([{ id: Date.now(), name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' }]);
     })
     .catch(error => {
       console.error('Error saving case:', error);
@@ -171,15 +179,7 @@ function CreateCaseForm() {
             className="cs-input"
             style={{ flexGrow: 1 }}
           />
-          <input
-            type="number"
-            value={item.weight}
-            onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
-            placeholder="Weight (Odds)"
-            className="cs-input"
-            style={{ width: '100px' }}
-            min="1"
-          />
+          {/* Removed Weight Input */}
           {/* Color Dropdown */}
           <select
             value={item.color}
@@ -193,10 +193,10 @@ function CreateCaseForm() {
               </option>
             ))}
           </select>
-          {/* Odds Display */}
+          {/* Odds Display based on counts */}
           <span style={{ width: '60px', textAlign: 'right', fontSize: '0.9em', color: 'var(--secondary-text)' }}>
-            {totalWeight > 0 && !isNaN(parseInt(item.weight)) && parseInt(item.weight) > 0
-              ? `${((parseInt(item.weight) / totalWeight) * 100).toFixed(2)}%`
+            {totalItems > 0
+              ? `${(((itemCounts[item.color] || 0) / totalItems) * 100).toFixed(2)}%` // Odds based on count of this color
               : '0.00%'}
           </span>
           <StyledButton
@@ -209,9 +209,10 @@ function CreateCaseForm() {
           </StyledButton>
         </div>
       ))}
-      <div style={{marginTop: '5px', marginBottom: '15px', textAlign: 'right', paddingRight: '80px', fontSize: '0.9em', fontWeight: 'bold'}}>
+      {/* Removed Total Weight display */}
+      {/* <div style={{marginTop: '5px', marginBottom: '15px', textAlign: 'right', paddingRight: '80px', fontSize: '0.9em', fontWeight: 'bold'}}>
           Total Weight: {totalWeight}
-      </div>
+      </div> */}
 
       <StyledButton onClick={addItem} style={{ marginRight: '10px' }}>
         Add Item
