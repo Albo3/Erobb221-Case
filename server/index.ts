@@ -24,7 +24,6 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     case_id INTEGER NOT NULL,
     name TEXT NOT NULL,
-    // weight INTEGER NOT NULL, -- Removed weight column
     color TEXT NOT NULL,
     image_url TEXT, -- Added image URL for the item
     rules TEXT, -- Added rules text for the item
@@ -82,8 +81,9 @@ app.get('/api/cases/:id', (c) => {
         }
 
         // Fetch associated items including image_url and rules
+        // Corrected SELECT statement: removed 'weight'
         const itemsStmt = db.prepare('SELECT name, color, image_url, rules FROM case_items WHERE case_id = ?');
-        // Removed weight from select and type
+        // Corrected type: removed 'weight'
         const items = itemsStmt.all(id) as Array<{ name: string; color: string; image_url: string | null; rules: string | null }>;
 
         // Combine and return
