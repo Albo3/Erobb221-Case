@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-// Removed incorrect server import
+import { cors } from 'hono/cors'; // Import CORS middleware
 import { Database } from 'bun:sqlite';
 
 // --- Database Setup ---
@@ -34,7 +34,16 @@ console.log('Database initialized and tables ensured.');
 // --- Hono App Setup ---
 const app = new Hono();
 
-// --- API Routes (to be added) ---
+// --- Middleware ---
+// Apply CORS middleware to allow requests from the frontend origin
+app.use('/api/*', cors({
+  origin: 'http://localhost:3000', // Allow frontend origin
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Specify allowed methods
+  allowHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
+}));
+
+
+// --- API Routes ---
 app.get('/', (c) => c.text('Hono Server Running!'));
 
 // GET /api/cases - Fetch list of all cases (ID and Name)

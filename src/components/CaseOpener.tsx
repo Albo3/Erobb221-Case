@@ -51,9 +51,31 @@ function CaseOpener() {
           })
           .then((data: CaseInfo[]) => {
               setAvailableCases(data);
-              // Optionally select the first case by default
               if (data.length > 0 && data[0]) {
+                  // Select the first case if available
                   setSelectedCaseId(data[0].id.toString());
+              } else {
+                  // No cases in DB, load a default fallback case
+                  console.log("No cases found in DB, loading default fallback case.");
+                  setCurrentCaseData({
+                      id: 0, // Use 0 or a special ID for fallback
+                      name: "Default Starter Case",
+                      description: "A basic case loaded because the database is empty.",
+                      items: [
+                          { name: "Default Gray", weight: 50, color: "gray" },
+                          { name: "Default Blue", weight: 30, color: "blue" },
+                          { name: "Default Purple", weight: 15, color: "purple" },
+                          { name: "Default Gold", weight: 5, color: "gold" },
+                      ]
+                  });
+                  // Initialize reel for fallback case
+                  setReelItems([
+                      { name: "Default Gray", weight: 50, color: "gray" },
+                      { name: "Default Blue", weight: 30, color: "blue" },
+                      { name: "Default Purple", weight: 15, color: "purple" },
+                      { name: "Default Gold", weight: 5, color: "gold" },
+                  ].slice(0, 10));
+                  setSelectedCaseId(''); // Ensure no ID is selected
               }
               setError(null);
           })
@@ -204,18 +226,21 @@ function CaseOpener() {
               id="case-select"
               value={selectedCaseId}
               onChange={(e) => setSelectedCaseId(e.target.value)}
-              disabled={isLoading || availableCases.length === 0}
+              disabled={isLoading || (availableCases.length === 0 && !currentCaseData)} // Disable if loading or no cases and no fallback
               className="cs-input" // Use existing style if suitable
               style={{ minWidth: '200px' }}
           >
-              <option value="" disabled>-- Select a Case --</option>
+              {/* Add placeholder only if there are actual cases */}
+              {availableCases.length > 0 && <option value="" disabled>-- Select a Case --</option>}
               {availableCases.map(caseInfo => (
                   <option key={caseInfo.id} value={caseInfo.id}>
                       {caseInfo.name} (ID: {caseInfo.id})
                   </option>
               ))}
           </select>
-          {availableCases.length === 0 && !isLoading && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
+          {/* Adjust message based on whether fallback is loaded */}
+          {availableCases.length === 0 && !isLoading && !currentCaseData && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
+          {availableCases.length === 0 && !isLoading && currentCaseData?.id === 0 && <span style={{ marginLeft: '10px', color: 'lightblue' }}>Showing Default Case</span>}
       </div>
 
       {/* Display Loading / Error / Case Info */}
