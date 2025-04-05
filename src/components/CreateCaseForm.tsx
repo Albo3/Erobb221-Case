@@ -73,25 +73,41 @@ function CreateCaseForm() {
       })),
     };
 
-    // Create JSON string and Blob
-    const jsonString = JSON.stringify(outputData, null, 2); // Pretty print JSON
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    // Convert data to JSON string for the request body
+    const jsonString = JSON.stringify(outputData, null, 2);
 
-    // Create download link and trigger click
-    const link = document.createElement('a');
-    link.href = url;
-    // Sanitize case name for filename
-    const fileName = `${caseName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'custom_case'}.json`;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-
-    // Clean up
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    alert(`Case "${outputData.name}" saved as ${fileName}`);
+    // --- Send data to backend API ---
+    // Use the full URL for the backend server
+    fetch('http://localhost:3001/api/cases', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonString,
+    })
+    .then(response => {
+      if (!response.ok) {
+        // Attempt to read error message from backend if available
+        return response.json().then(errData => {
+            throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }).catch(() => {
+            // Fallback if response is not JSON or reading fails
+            throw new Error(`HTTP error! status: ${response.status}`);
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      alert(`Case "${outputData.name}" created successfully with ID: ${data.caseId}`);
+      // Optionally reset the form here
+      setCaseName('');
+      setCaseDescription('');
+      setItems([{ id: Date.now(), name: '', weight: '', color: '' }]);
+    })
+    .catch(error => {
+      console.error('Error saving case:', error);
+      alert(`Error saving case: ${error.message}`);
+    });
   };
 
   return (
@@ -169,7 +185,7 @@ function CreateCaseForm() {
       </StyledButton>
 
       <StyledButton onClick={handleSaveCase} style={{ marginTop: '20px' }}>
-        Save Case as JSON
+        Save Case to Database
       </StyledButton>
     </div>
   );

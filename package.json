@@ -8,7 +8,9 @@
     "typescript": "^5"
   },
   "scripts": {
-    "dev": "bun run --hot public/index.html",
+    "dev:frontend": "bun run --hot src/index.tsx",
+    "dev:backend": "bun run server/index.ts",
+    "dev": "concurrently \"bun run dev:frontend\" \"bun run dev:backend\"",
     "build": "bun build src/index.tsx --outdir ./build --public-dir ./public"
   },
   "dependencies": {
@@ -16,6 +18,8 @@
     "@types/react-dom": "^19.1.1",
     "@types/react-syntax-highlighter": "^15.5.13",
     "buffer": "^6.0.3",
+    "concurrently": "^9.1.2",
+    "hono": "^4.7.5",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "react": "^19.1.0",

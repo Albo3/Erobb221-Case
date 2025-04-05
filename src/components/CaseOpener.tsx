@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 // Removed matter import
 import StyledButton from './StyledButton';
 import './CaseOpener.css';
-// Import the JSON file directly - TypeScript/Bun handle parsing
-import caseDataJson from '../cases/example_case.json';
+// Removed direct JSON import
 
-// Define interfaces for case data structure
+// Define interfaces for case data structure (CaseItem remains the same)
 interface CaseItem {
   name: string;
   weight: number;
@@ -16,49 +15,104 @@ interface CaseData {
   name: string;
   description: string;
   items: CaseItem[];
+  // Add id if needed, based on API response
+  id?: number;
 }
+
+// Interface for the list of cases fetched from /api/cases
+interface CaseInfo {
+    id: number;
+    name: string;
+}
+
 
 const REEL_ITEM_WIDTH = 100; // Width of each item in pixels + margin
 const SPIN_DURATION = 3000; // Duration of spin animation in ms
 
-// Removed parseMarkdownItems helper function
 
 function CaseOpener() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
-  // State now directly holds the imported JSON data structure
-  const [caseData, setCaseData] = useState<CaseData>(caseDataJson); // Initialize directly
-  const [error, setError] = useState<string | null>(null); // Keep error state for potential future use
+  const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
+  const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
 
-  // Effect to initialize reel items from the loaded case data
+  // Effect to fetch the list of available cases on mount
   useEffect(() => {
-      // Validate the imported data (optional but good practice)
-      if (!caseData || !caseData.name || !caseData.description || !Array.isArray(caseData.items) || caseData.items.length === 0) {
-          setError("Imported case data is invalid or missing required fields.");
-          console.error("Invalid case data:", caseData);
-          setCaseData({ name: "Error", description: "Invalid case data", items: [] }); // Set a default error state
+      setIsLoading(true);
+      fetch('http://localhost:3001/api/cases') // Use full URL
+          .then(response => {
+              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+              return response.json();
+          })
+          .then((data: CaseInfo[]) => {
+              setAvailableCases(data);
+              // Optionally select the first case by default
+              if (data.length > 0 && data[0]) {
+                  setSelectedCaseId(data[0].id.toString());
+              }
+              setError(null);
+          })
+          .catch(err => {
+              console.error("Error fetching available cases:", err);
+              setError(`Failed to load available cases: ${err.message}`);
+              setAvailableCases([]);
+          })
+          .finally(() => setIsLoading(false));
+  }, []);
+
+  // Effect to fetch details when selectedCaseId changes
+  useEffect(() => {
+      if (!selectedCaseId) {
+          setCurrentCaseData(null); // Clear data if no case is selected
           return;
       }
-      // Set initial reel items
-      setReelItems(caseData.items.slice(0, 10));
-      setError(null); // Clear any previous error
-  }, [caseData]); // Rerun if caseData changes (though it won't with direct import)
 
-  // Function to get a weighted random item based on JSON data
+      setIsLoading(true);
+      setError(null); // Clear previous errors
+      fetch(`http://localhost:3001/api/cases/${selectedCaseId}`) // Use full URL
+          .then(response => {
+              if (!response.ok) {
+                  return response.json().then(errData => {
+                      throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+                  }).catch(() => {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  });
+              }
+              return response.json();
+          })
+          .then((data: CaseData) => {
+              if (!data || !Array.isArray(data.items)) {
+                   throw new Error("Invalid case data received from server.");
+              }
+              setCurrentCaseData(data);
+              setReelItems(data.items.slice(0, 10)); // Initialize reel
+          })
+          .catch(err => {
+              console.error(`Error fetching case ${selectedCaseId}:`, err);
+              setError(`Failed to load case details: ${err.message}`);
+              setCurrentCaseData(null); // Clear data on error
+          })
+          .finally(() => setIsLoading(false));
+
+  }, [selectedCaseId]); // Dependency array includes selectedCaseId
+
+  // Function to get a weighted random item based on CURRENTLY loaded case data
   const getRandomItem = (): CaseItem | null => {
-      // caseData is now initialized directly, but check items array just in case
-      if (!caseData || !caseData.items || caseData.items.length === 0) return null;
+      if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
 
-      const totalWeight = caseData.items.reduce((sum, item) => sum + item.weight, 0);
+      const totalWeight = currentCaseData.items.reduce((sum, item) => sum + item.weight, 0);
       if (totalWeight <= 0) {
-           const firstItem = caseData.items[0];
-           return firstItem ?? null; // Use nullish coalescing for cleaner check
+           const firstItem = currentCaseData.items[0];
+           return firstItem ?? null;
       }
 
       let randomNum = Math.random() * totalWeight;
-      for (const item of caseData.items) {
+      for (const item of currentCaseData.items) {
           if (randomNum < item.weight) {
               return item;
           }
@@ -66,13 +120,13 @@ function CaseOpener() {
       }
 
       // Fallback for potential floating point issues
-      const lastItem = caseData.items[caseData.items.length - 1];
-      return lastItem ?? null; // Use nullish coalescing
+      const lastItem = currentCaseData.items[currentCaseData.items.length - 1];
+      return lastItem ?? null;
   };
 
   const startSpin = () => {
-    // caseData is initialized, just check if spinning
-    if (isSpinning) return;
+    // Check if spinning or if case data isn't loaded
+    if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
 
     const currentWinningItem = getRandomItem();
     if (!currentWinningItem) {
@@ -91,12 +145,12 @@ function CaseOpener() {
         if (randomItem) {
             generatedReel.push(randomItem);
         } else {
-            // Fallback: push the first item from caseData if getRandomItem fails unexpectedly
-            const fallbackItem = caseData.items[0]; // Explicitly get the item
+            // Fallback: push the first item from currentCaseData if getRandomItem fails unexpectedly
+            const fallbackItem = currentCaseData.items[0]; // Explicitly get the item
             if (fallbackItem) { // Check if it exists before pushing
                 generatedReel.push(fallbackItem);
             } else {
-                // This case should be impossible if caseData is loaded and items exist, but good practice
+                // This case should be impossible if currentCaseData is loaded and items exist
                 setError("Cannot generate reel: No items available.");
                 setIsSpinning(false);
                 return; // Exit if no items can be added
@@ -143,12 +197,38 @@ function CaseOpener() {
 
   return (
     <div style={{ padding: '20px' }}>
-      {/* Use caseData directly, checking for its existence */}
-      <h2>{caseData?.name ?? 'Loading...'}</h2>
-      <p>{caseData?.description ?? ''}</p>
-      <hr className="cs-hr" style={{ margin: '15px 0' }} />
+      {/* Case Selection Dropdown */}
+      <div style={{ marginBottom: '20px' }}>
+          <label htmlFor="case-select" style={{ marginRight: '10px' }}>Select Case:</label>
+          <select
+              id="case-select"
+              value={selectedCaseId}
+              onChange={(e) => setSelectedCaseId(e.target.value)}
+              disabled={isLoading || availableCases.length === 0}
+              className="cs-input" // Use existing style if suitable
+              style={{ minWidth: '200px' }}
+          >
+              <option value="" disabled>-- Select a Case --</option>
+              {availableCases.map(caseInfo => (
+                  <option key={caseInfo.id} value={caseInfo.id}>
+                      {caseInfo.name} (ID: {caseInfo.id})
+                  </option>
+              ))}
+          </select>
+          {availableCases.length === 0 && !isLoading && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
+      </div>
 
-      {/* The visual container for the reel */}
+      {/* Display Loading / Error / Case Info */}
+      {isLoading && <p>Loading case data...</p>}
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+
+      {currentCaseData && !isLoading && !error && (
+          <>
+              <h2>{currentCaseData.name}</h2>
+              <p>{currentCaseData.description ?? 'No description.'}</p>
+              <hr className="cs-hr" style={{ margin: '15px 0' }} />
+
+              {/* The visual container for the reel */}
       <div className="case-opener-viewport">
         <div className="case-opener-reel" ref={reelRef}>
           {reelItems.map((item, index) => (
@@ -161,15 +241,18 @@ function CaseOpener() {
             </div>
           ))}
         </div>
-         {/* Center marker */}
-        <div className="case-opener-marker"></div>
-      </div>
+                 {/* Center marker */}
+                <div className="case-opener-marker"></div>
+              </div>
 
-      <StyledButton onClick={startSpin} disabled={isSpinning || !caseData || caseData.items.length === 0} style={{ marginTop: '20px' }}>
-        {isSpinning ? 'Opening...' : 'Open Case'}
-      </StyledButton>
+              <StyledButton onClick={startSpin} disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0} style={{ marginTop: '20px' }}>
+                {isSpinning ? 'Opening...' : 'Open Case'}
+              </StyledButton>
+          </>
+      )}
 
-      {/* Display the won item */}
+
+      {/* Display the won item (remains largely the same) */}
       {wonItem && !isSpinning && (
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
           <h3>You unboxed:</h3>
