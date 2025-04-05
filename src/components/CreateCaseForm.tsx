@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import StyledButton from './StyledButton'; // Assuming we reuse the button style
+import React, { useState, useMemo } from 'react'; // Import useMemo
+import StyledButton from './StyledButton';
 
 // Define the structure for an item within the case
 interface CaseItemInput {
   id: number; // For React key prop
   name: string;
   weight: string; // Use string for input, parse later
-  color: string;
+  color: string; // Store the color value (e.g., 'gray', 'blue')
 }
 
 // Define the structure for the case being created
@@ -16,13 +16,31 @@ interface CaseDefinition {
   items: CaseItemInput[];
 }
 
+// Define standard rarity colors
+const RARITY_COLORS = [
+  { name: 'Gray (Common)', value: 'gray' },
+  { name: 'Blue (Uncommon)', value: 'blue' },
+  { name: 'Purple (Rare)', value: 'purple' },
+  { name: 'Pink (Mythical)', value: 'pink' },
+  { name: 'Red (Legendary)', value: 'red' },
+  { name: 'Gold (Ancient)', value: 'gold' },
+];
+
 function CreateCaseForm() {
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemInput[]>([
-    // Start with one empty item row
-    { id: Date.now(), name: '', weight: '', color: '' },
+    // Start with one empty item row, default color to gray
+    { id: Date.now(), name: '', weight: '', color: RARITY_COLORS[0]?.value ?? 'gray' },
   ]);
+
+  // Calculate total weight using useMemo for efficiency
+  const totalWeight = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const weight = parseInt(item.weight, 10);
+      return sum + (isNaN(weight) || weight <= 0 ? 0 : weight);
+    }, 0);
+  }, [items]); // Recalculate only when items change
 
   // Function to handle changes in item inputs
   const handleItemChange = (index: number, field: keyof Omit<CaseItemInput, 'id'>, value: string) => {
@@ -37,7 +55,8 @@ function CreateCaseForm() {
 
   // Function to add a new empty item row
   const addItem = () => {
-    setItems([...items, { id: Date.now(), name: '', weight: '', color: '' }]);
+    // Default new item color to gray
+    setItems([...items, { id: Date.now(), name: '', weight: '', color: RARITY_COLORS[0]?.value ?? 'gray' }]);
   };
 
   // Function to remove an item row
@@ -161,14 +180,25 @@ function CreateCaseForm() {
             style={{ width: '100px' }}
             min="1"
           />
-          <input
-            type="text"
+          {/* Color Dropdown */}
+          <select
             value={item.color}
             onChange={(e) => handleItemChange(index, 'color', e.target.value)}
-            placeholder="Color (e.g., blue, #ff0000)"
-            className="cs-input"
-            style={{ width: '150px' }}
-          />
+            className="cs-input" // Reuse input style for select
+            style={{ width: '170px' }} // Adjust width slightly
+          >
+            {RARITY_COLORS.map(colorOption => (
+              <option key={colorOption.value} value={colorOption.value}>
+                {colorOption.name}
+              </option>
+            ))}
+          </select>
+          {/* Odds Display */}
+          <span style={{ width: '60px', textAlign: 'right', fontSize: '0.9em', color: 'var(--secondary-text)' }}>
+            {totalWeight > 0 && !isNaN(parseInt(item.weight)) && parseInt(item.weight) > 0
+              ? `${((parseInt(item.weight) / totalWeight) * 100).toFixed(2)}%`
+              : '0.00%'}
+          </span>
           <StyledButton
             onClick={() => removeItem(index)}
             disabled={items.length <= 1}
@@ -179,8 +209,11 @@ function CreateCaseForm() {
           </StyledButton>
         </div>
       ))}
+      <div style={{marginTop: '5px', marginBottom: '15px', textAlign: 'right', paddingRight: '80px', fontSize: '0.9em', fontWeight: 'bold'}}>
+          Total Weight: {totalWeight}
+      </div>
 
-      <StyledButton onClick={addItem} style={{ marginRight: '10px' }}> {/* Removed variant="secondary" */}
+      <StyledButton onClick={addItem} style={{ marginRight: '10px' }}>
         Add Item
       </StyledButton>
 
