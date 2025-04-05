@@ -14,6 +14,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
+    sound_url TEXT, -- Added sound URL for the case
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -25,6 +26,8 @@ db.exec(`
     name TEXT NOT NULL,
     // weight INTEGER NOT NULL, -- Removed weight column
     color TEXT NOT NULL,
+    image_url TEXT, -- Added image URL for the item
+    rules TEXT, -- Added rules text for the item
     FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE
   );
 `);
@@ -70,17 +73,18 @@ app.get('/api/cases/:id', (c) => {
     }
 
     try {
-        // Fetch case details
-        const caseStmt = db.prepare('SELECT id, name, description FROM cases WHERE id = ?');
-        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null } | null;
+        // Fetch case details including sound_url
+        const caseStmt = db.prepare('SELECT id, name, description, sound_url FROM cases WHERE id = ?');
+        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null; sound_url: string | null } | null;
 
         if (!caseDetails) {
             return c.json({ error: 'Case not found.' }, 404);
         }
 
-        // Fetch associated items
-        const itemsStmt = db.prepare('SELECT name, weight, color FROM case_items WHERE case_id = ?');
-        const items = itemsStmt.all(id) as Array<{ name: string; weight: number; color: string }>;
+        // Fetch associated items including image_url and rules
+        const itemsStmt = db.prepare('SELECT name, color, image_url, rules FROM case_items WHERE case_id = ?');
+        // Removed weight from select and type
+        const items = itemsStmt.all(id) as Array<{ name: string; color: string; image_url: string | null; rules: string | null }>;
 
         // Combine and return
         const result = {
@@ -97,14 +101,16 @@ app.get('/api/cases/:id', (c) => {
 
 // --- API Route Implementations ---
 
-// Define expected request body structure for creating a case
+// Define expected request body structure for creating a case (with new fields)
 interface CreateCaseRequestBody {
     name: string;
-    description?: string; // Optional description
-    items: Array<{ // Backend now expects items without weight
+    description?: string;
+    sound_url?: string; // Added sound_url
+    items: Array<{
         name: string;
-        // weight: number; // Removed weight
         color: string;
+        image_url?: string; // Added image_url
+        rules?: string; // Added rules
     }>;
 }
 
@@ -121,21 +127,33 @@ app.post('/api/cases', async (c) => {
         if (!Array.isArray(body.items) || body.items.length === 0) {
             return c.json({ error: 'Case must contain at least one item.' }, 400);
         }
+        // Add validation for optional URL/text fields if needed (e.g., check if URL format is valid)
+        // For simplicity, we'll just check basic types if they exist
+        if (body.sound_url && typeof body.sound_url !== 'string') {
+             return c.json({ error: 'Invalid sound_url format.' }, 400);
+        }
         for (const item of body.items) {
-            // Updated validation: check only name and color
+            // Updated validation: check name and color (required)
             if (!item.name || typeof item.name !== 'string' || item.name.trim() === '' ||
-                // !item.weight || typeof item.weight !== 'number' || item.weight <= 0 || // Removed weight validation
                 !item.color || typeof item.color !== 'string' || item.color.trim() === '') {
                 return c.json({ error: 'Each item must have a valid name and color.' }, 400);
+            }
+            // Optional field validation
+            if (item.image_url && typeof item.image_url !== 'string') {
+                 return c.json({ error: `Invalid image_url format for item '${item.name}'.` }, 400);
+            }
+             if (item.rules && typeof item.rules !== 'string') {
+                 return c.json({ error: `Invalid rules format for item '${item.name}'.` }, 400);
             }
         }
         // --- End Validation ---
 
 
         // --- Database Insertion (Transaction) ---
-        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description) VALUES (?, ?) RETURNING id');
-        // Updated statement: removed weight column
-        const insertItemStmt = db.prepare('INSERT INTO case_items (case_id, name, color) VALUES (?, ?, ?)');
+        // Updated statement: added sound_url
+        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, sound_url) VALUES (?, ?, ?) RETURNING id');
+        // Updated statement: added image_url, rules
+        const insertItemStmt = db.prepare('INSERT INTO case_items (case_id, name, color, image_url, rules) VALUES (?, ?, ?, ?, ?)');
 
         let caseId: number | null = null;
         try {
@@ -144,7 +162,8 @@ app.post('/api/cases', async (c) => {
             // Explicitly type the expected result from the RETURNING clause
             const caseResult = insertCaseStmt.get(
                 body.name.trim(),
-                body.description?.trim() ?? null
+                body.description?.trim() ?? null,
+                body.sound_url?.trim() ?? null // Add sound_url
             ) as { id: number } | null; // Type assertion
 
             if (!caseResult || typeof caseResult.id !== 'number') {
@@ -154,8 +173,14 @@ app.post('/api/cases', async (c) => {
             caseId = caseResult.id; // Now TS knows caseResult.id is a number
 
             for (const item of body.items) {
-                // Updated run call: removed weight argument
-                insertItemStmt.run(caseId, item.name.trim(), item.color.trim());
+                // Updated run call: added image_url, rules
+                insertItemStmt.run(
+                    caseId,
+                    item.name.trim(),
+                    item.color.trim(),
+                    item.image_url?.trim() ?? null,
+                    item.rules?.trim() ?? null
+                );
             }
 
             db.exec('COMMIT');

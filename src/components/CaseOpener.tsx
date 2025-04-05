@@ -7,15 +7,17 @@ import './CaseOpener.css';
 // Define interfaces for case data structure (CaseItem remains the same)
 interface CaseItem {
   name: string;
-  weight: number;
+  // weight: number; // Weight is no longer directly used from DB
   color: string;
+  image_url?: string | null; // Add image_url
+  rules?: string | null; // Add rules
 }
 
 interface CaseData {
   name: string;
-  description: string;
+  description: string | null; // Allow null description
+  sound_url?: string | null; // Add sound_url
   items: CaseItem[];
-  // Add id if needed, based on API response
   id?: number;
 }
 
@@ -68,24 +70,26 @@ function CaseOpener() {
                   // No cases in DB, load a default fallback case
                   console.log("No cases found in DB, loading default fallback case.");
                   setCurrentCaseData({
-                      id: 0, // Use 0 or a special ID for fallback
+                      id: 0,
                       name: "Default Starter Case",
                       description: "A basic case loaded because the database is empty.",
+                      sound_url: null, // No sound for default
                       items: [
-                          { name: "Default Gray", weight: 50, color: "gray" },
-                          { name: "Default Blue", weight: 30, color: "blue" },
-                          { name: "Default Purple", weight: 15, color: "purple" },
-                          { name: "Default Gold", weight: 5, color: "gold" },
+                          // Default items don't have weight, image, or rules here
+                          { name: "Default Gray", color: "#b0c3d9" },
+                          { name: "Default Blue", color: "#5e98d9" },
+                          { name: "Default Purple", color: "#4b69ff" },
+                          { name: "Default Gold", color: "#ffd700" },
                       ]
                   });
                   // Initialize reel for fallback case
                   setReelItems([
-                      { name: "Default Gray", weight: 50, color: "gray" },
-                      { name: "Default Blue", weight: 30, color: "blue" },
-                      { name: "Default Purple", weight: 15, color: "purple" },
-                      { name: "Default Gold", weight: 5, color: "gold" },
-                  ].slice(0, 10));
-                  setSelectedCaseId(''); // Ensure no ID is selected
+                      { name: "Default Gray", color: "#b0c3d9" },
+                      { name: "Default Blue", color: "#5e98d9" },
+                      { name: "Default Purple", color: "#4b69ff" },
+                      { name: "Default Gold", color: "#ffd700" },
+                  ].slice(0, 10)); // Slice still works, just uses color
+                  setSelectedCaseId('');
               }
               setError(null);
           })
@@ -137,10 +141,10 @@ function CaseOpener() {
   const getRandomItem = (): CaseItem | null => {
       if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
 
-      // --- Determine Odds Based on Rarity Distribution ---
+      // --- Determine Odds Based on Rarity Distribution (using color value) ---
       // This is a simplified example. Real CS:GO odds are complex and not public.
-      // We'll assign higher chances to lower rarities based on their index in RARITY_COLORS.
-      const rarityWeights: { [color: string]: number } = {
+      // We'll assign higher chances to lower rarities based on their color value matching RARITY_COLORS.
+      const rarityWeights: { [colorValue: string]: number } = {
           [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, // Consumer Grade
           [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,  // Industrial Grade
           [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  // Mil-Spec
@@ -179,14 +183,23 @@ function CaseOpener() {
       //     randomNum -= item.weight;
       // }
 
-      // Fallback should ideally not be reached with the weighted list approach
-      // const lastItem = currentCaseData.items[currentCaseData.items.length - 1];
-      // return lastItem ?? null;
+      // Fallback should ideally not be reached
   };
 
   const startSpin = () => {
     // Check if spinning or if case data isn't loaded
     if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
+
+     // --- Play Sound ---
+     if (currentCaseData.sound_url) {
+        try {
+            const audio = new Audio(currentCaseData.sound_url);
+            audio.play().catch(e => console.error("Error playing sound:", e)); // Catch potential play errors
+        } catch (e) {
+            console.error("Error creating audio object:", e);
+        }
+     }
+     // --- End Play Sound ---
 
     const currentWinningItem = getRandomItem();
     if (!currentWinningItem) {
@@ -320,10 +333,10 @@ function CaseOpener() {
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
           <h3>You unboxed:</h3>
           <p style={{
-            color: wonItem.color || 'white', // Use color from won item
+            color: wonItem.color || 'white',
             fontSize: '1.5em',
             fontWeight: 'bold',
-            border: `2px solid ${wonItem.color || 'white'}`, // Use color from won item
+            border: `2px solid ${wonItem.color || 'white'}`,
             padding: '10px',
             display: 'inline-block',
             marginTop: '5px',
@@ -331,6 +344,22 @@ function CaseOpener() {
            }}>
             {wonItem.name}
           </p>
+          {/* Display Image if URL exists */}
+          {wonItem.image_url && (
+            <img
+                src={wonItem.image_url}
+                alt={wonItem.name}
+                style={{ display: 'block', maxWidth: '200px', maxHeight: '200px', margin: '10px auto', border: '1px solid var(--border-color)' }}
+                onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
+            />
+          )}
+          {/* Display Rules if text exists */}
+          {wonItem.rules && (
+            <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
+                <strong>Rules:</strong>
+                <p>{wonItem.rules}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
