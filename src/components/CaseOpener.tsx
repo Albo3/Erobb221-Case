@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-// Remove fs and path imports as they are Node-specific
 import matter from 'gray-matter'; // Import gray-matter
 import StyledButton from './StyledButton';
 import './CaseOpener.css';
+// Import the markdown file content directly
+import caseFileContent from '../cases/example_case.md';
 
 // Define interfaces for case data structure
 interface CaseItem {
@@ -89,19 +90,17 @@ function CaseOpener() {
   const [error, setError] = useState<string | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
 
-  // Effect to load case data from markdown file on mount using fetch
+  // Effect to load case data from imported markdown file content
   useEffect(() => {
-    const loadCaseData = async () => {
-      try {
-        // Fetch the markdown file from the public directory
-        const response = await fetch('/cases/example_case.md'); // Path relative to public folder
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const fileContent = await response.text();
+    try {
+        // Use the imported file content
+        const fileContent = caseFileContent;
+        // console.log("Imported file content:", fileContent); // Optional: Keep for debugging if needed
         const { data, content } = matter(fileContent); // Parse frontmatter and content
+        // console.log("Parsed frontmatter data:", data); // Optional: Keep for debugging if needed
 
-        if (!data.name || !data.description) {
+        if (!data || typeof data !== 'object' || !data.name || !data.description) {
+            console.error("Parsed data object is missing required fields or is not an object:", data);
             throw new Error("Markdown frontmatter must contain 'name' and 'description'.");
         }
 
@@ -119,12 +118,10 @@ function CaseOpener() {
         setError(null);
       } catch (err: any) {
         console.error("Error loading case data:", err);
-        setError(`Failed to load case data: ${err.message}. Check file path and format.`);
+        setError(`Failed to load case data: ${err.message}. Check import path and format.`);
         setCaseData(null);
       }
-    };
-
-    loadCaseData();
+    // Removed async/await as it's no longer needed for fetch
   }, []); // Empty dependency array ensures this runs only once on mount
 
   // Function to get a weighted random item based on parsed weights
