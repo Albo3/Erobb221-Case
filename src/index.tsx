@@ -1,13 +1,15 @@
+import { Buffer } from 'buffer'; // Re-import Buffer
+// Assign Buffer to the window object VERY EARLY to make it globally available
+(window as any).Buffer = Buffer;
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-// Removed Buffer import
 import App from './components/App';
 import './styles/style.css';
 import './styles/cs16.css';
 import './components/CaseOpener.css';
 import logger from './logger'; // Import the logger
 
-// Removed Buffer assignment to window
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

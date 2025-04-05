@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import matter from 'gray-matter'; // Import gray-matter
+// Removed matter import
 import StyledButton from './StyledButton';
 import './CaseOpener.css';
-// Import the markdown file content directly
-import caseFileContent from '../cases/example_case.md';
+// Import the JSON file directly - TypeScript/Bun handle parsing
+import caseDataJson from '../cases/example_case.json';
 
 // Define interfaces for case data structure
 interface CaseItem {
@@ -21,119 +21,40 @@ interface CaseData {
 const REEL_ITEM_WIDTH = 100; // Width of each item in pixels + margin
 const SPIN_DURATION = 3000; // Duration of spin animation in ms
 
-// Helper function to parse the markdown item list more robustly
-const parseMarkdownItems = (markdownContent: string): CaseItem[] => {
-    const items: CaseItem[] = [];
-    const lines = markdownContent.trim().split('\n');
-    let currentItem: Partial<CaseItem> = {};
-
-    const itemRegex = /-\s+Item:\s*"([^"]+)"/;
-    const weightRegex = /Weight:\s*(\d+)/;
-    const colorRegex = /Color:\s*"([^"]+)"/;
-
-    for (const line of lines) {
-        const trimmedLine = line.trim();
-
-        const itemMatch = trimmedLine.match(itemRegex);
-        if (itemMatch?.[1]) {
-            // Finalize the previous item if it was complete
-            if (currentItem.name && currentItem.weight !== undefined && currentItem.color) {
-                items.push(currentItem as CaseItem);
-            }
-            // Start a new item
-            currentItem = { name: itemMatch[1] };
-            continue; // Move to next line after finding item name
-        }
-
-        // Only process weight/color if we have a current item name
-        if (currentItem.name) {
-            const weightMatch = trimmedLine.match(weightRegex);
-            if (weightMatch?.[1]) {
-                currentItem.weight = parseInt(weightMatch[1], 10);
-                // Check if item is complete after adding weight
-                if (currentItem.name && currentItem.weight !== undefined && currentItem.color) {
-                    items.push(currentItem as CaseItem);
-                    currentItem = {}; // Reset
-                }
-                continue; // Move to next line
-            }
-
-            const colorMatch = trimmedLine.match(colorRegex);
-            if (colorMatch?.[1]) {
-                currentItem.color = colorMatch[1];
-                // Check if item is complete after adding color
-                if (currentItem.name && currentItem.weight !== undefined && currentItem.color) {
-                    items.push(currentItem as CaseItem);
-                    currentItem = {}; // Reset
-                }
-                // continue; // Don't continue here, might be end of multi-line item definition
-            }
-        }
-    }
-    // Add the last item if it's complete and wasn't added yet
-    if (currentItem.name && currentItem.weight !== undefined && currentItem.color) {
-       // Check if it's already added to prevent duplicates if last line completed it
-       if (!items.some(item => item.name === currentItem.name && item.weight === currentItem.weight && item.color === currentItem.color)) {
-           items.push(currentItem as CaseItem);
-       }
-    }
-
-    return items;
-};
-
+// Removed parseMarkdownItems helper function
 
 function CaseOpener() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
-  const [caseData, setCaseData] = useState<CaseData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // State now directly holds the imported JSON data structure
+  const [caseData, setCaseData] = useState<CaseData>(caseDataJson); // Initialize directly
+  const [error, setError] = useState<string | null>(null); // Keep error state for potential future use
   const reelRef = useRef<HTMLDivElement>(null);
 
-  // Effect to load case data from imported markdown file content
+  // Effect to initialize reel items from the loaded case data
   useEffect(() => {
-    try {
-        // Use the imported file content
-        const fileContent = caseFileContent;
-        // console.log("Imported file content:", fileContent); // Optional: Keep for debugging if needed
-        const { data, content } = matter(fileContent); // Parse frontmatter and content
-        // console.log("Parsed frontmatter data:", data); // Optional: Keep for debugging if needed
-
-        if (!data || typeof data !== 'object' || !data.name || !data.description) {
-            console.error("Parsed data object is missing required fields or is not an object:", data);
-            throw new Error("Markdown frontmatter must contain 'name' and 'description'.");
-        }
-
-        const items = parseMarkdownItems(content);
-        if (items.length === 0) {
-            throw new Error("Could not parse any items from the markdown content.");
-        }
-
-        setCaseData({
-          name: data.name,
-          description: data.description,
-          items: items,
-        });
-        setReelItems(items.slice(0, 10)); // Initial placeholder items
-        setError(null);
-      } catch (err: any) {
-        console.error("Error loading case data:", err);
-        setError(`Failed to load case data: ${err.message}. Check import path and format.`);
-        setCaseData(null);
+      // Validate the imported data (optional but good practice)
+      if (!caseData || !caseData.name || !caseData.description || !Array.isArray(caseData.items) || caseData.items.length === 0) {
+          setError("Imported case data is invalid or missing required fields.");
+          console.error("Invalid case data:", caseData);
+          setCaseData({ name: "Error", description: "Invalid case data", items: [] }); // Set a default error state
+          return;
       }
-    // Removed async/await as it's no longer needed for fetch
-  }, []); // Empty dependency array ensures this runs only once on mount
+      // Set initial reel items
+      setReelItems(caseData.items.slice(0, 10));
+      setError(null); // Clear any previous error
+  }, [caseData]); // Rerun if caseData changes (though it won't with direct import)
 
-  // Function to get a weighted random item based on parsed weights
+  // Function to get a weighted random item based on JSON data
   const getRandomItem = (): CaseItem | null => {
-      if (!caseData || caseData.items.length === 0) return null;
+      // caseData is now initialized directly, but check items array just in case
+      if (!caseData || !caseData.items || caseData.items.length === 0) return null;
 
       const totalWeight = caseData.items.reduce((sum, item) => sum + item.weight, 0);
-      // Fallback if weights are invalid or items array is empty (already checked above, but safe)
       if (totalWeight <= 0) {
-           // Explicitly check if items[0] exists before returning it
            const firstItem = caseData.items[0];
-           return firstItem ? firstItem : null; // Return null if items[0] is undefined
+           return firstItem ?? null; // Use nullish coalescing for cleaner check
       }
 
       let randomNum = Math.random() * totalWeight;
@@ -144,13 +65,14 @@ function CaseOpener() {
           randomNum -= item.weight;
       }
 
-      // Fallback for potential floating point issues, ensure items[last] exists
+      // Fallback for potential floating point issues
       const lastItem = caseData.items[caseData.items.length - 1];
-      return lastItem ? lastItem : null; // Return null if last item is undefined (shouldn't happen)
+      return lastItem ?? null; // Use nullish coalescing
   };
 
   const startSpin = () => {
-    if (isSpinning || !caseData) return;
+    // caseData is initialized, just check if spinning
+    if (isSpinning) return;
 
     const currentWinningItem = getRandomItem();
     if (!currentWinningItem) {
@@ -214,14 +136,16 @@ function CaseOpener() {
       return <div style={{ padding: '20px', color: 'red' }}>Error: {error}</div>;
   }
 
-  if (!caseData) {
-      return <div style={{ padding: '20px' }}>Loading case data...</div>;
-  }
+  // No longer need the loading state as data is imported directly
+  // if (!caseData) {
+  //     return <div style={{ padding: '20px' }}>Loading case data...</div>;
+  // }
 
   return (
     <div style={{ padding: '20px' }}>
-      <h2>{caseData.name}</h2>
-      <p>{caseData.description}</p>
+      {/* Use caseData directly, checking for its existence */}
+      <h2>{caseData?.name ?? 'Loading...'}</h2>
+      <p>{caseData?.description ?? ''}</p>
       <hr className="cs-hr" style={{ margin: '15px 0' }} />
 
       {/* The visual container for the reel */}
@@ -241,7 +165,7 @@ function CaseOpener() {
         <div className="case-opener-marker"></div>
       </div>
 
-      <StyledButton onClick={startSpin} disabled={isSpinning || !caseData} style={{ marginTop: '20px' }}>
+      <StyledButton onClick={startSpin} disabled={isSpinning || !caseData || caseData.items.length === 0} style={{ marginTop: '20px' }}>
         {isSpinning ? 'Opening...' : 'Open Case'}
       </StyledButton>
 
