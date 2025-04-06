@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Add useRef
 import type { ChangeEvent, FormEvent } from 'react'; // Use type-only imports
 import StyledButton from './StyledButton';
 
@@ -22,7 +22,17 @@ function ItemTemplateManager() {
     const [newTemplateImageFile, setNewTemplateImageFile] = useState<File | null>(null);
     const [newTemplateSoundFile, setNewTemplateSoundFile] = useState<File | null>(null);
     const [newTemplateRulesText, setNewTemplateRulesText] = useState('');
-    const [isUploading, setIsUploading] = useState(false);
+    const [isUploading, setIsUploading] = useState(false); // Tracks create/update state
+
+    // State for editing
+    const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+    const [clearExistingImage, setClearExistingImage] = useState(false);
+    const [clearExistingSound, setClearExistingSound] = useState(false);
+
+    // Refs for file inputs to allow resetting them
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const soundInputRef = useRef<HTMLInputElement>(null);
+
 
     // Function to fetch item templates
     const fetchItemTemplates = () => {
@@ -57,11 +67,41 @@ function ItemTemplateManager() {
         setNewTemplateSoundFile(event.target.files?.[0] ?? null);
     };
 
-    // Handle template creation submission
-    const handleCreateTemplate = (event: FormEvent) => {
+    // Reset form fields
+    const resetForm = () => {
+        setNewTemplateName('');
+        setNewTemplateImageFile(null);
+        setNewTemplateSoundFile(null);
+        setNewTemplateRulesText('');
+        setEditingTemplateId(null);
+        setClearExistingImage(false);
+        setClearExistingSound(false);
+        // Reset file input visually
+        if (imageInputRef.current) imageInputRef.current.value = '';
+        if (soundInputRef.current) soundInputRef.current.value = '';
+    };
+
+    // Handle starting an edit
+    const handleEditClick = (template: ItemTemplate) => {
+        setEditingTemplateId(template.id);
+        setNewTemplateName(template.base_name);
+        setNewTemplateRulesText(template.rules_text ?? '');
+        // Clear file selections and clear flags when starting edit
+        setNewTemplateImageFile(null);
+        setNewTemplateSoundFile(null);
+        setClearExistingImage(false);
+        setClearExistingSound(false);
+        if (imageInputRef.current) imageInputRef.current.value = '';
+        if (soundInputRef.current) soundInputRef.current.value = '';
+        // Scroll to form maybe? (optional)
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Handle form submission (Create or Update)
+    const handleSubmit = (event: FormEvent) => {
         event.preventDefault();
         if (!newTemplateName.trim()) {
-            alert('Please enter a base name for the item template.');
+            alert(`Please enter a base name for the item template.`);
             return;
         }
 
@@ -78,39 +118,42 @@ function ItemTemplateManager() {
         if (newTemplateRulesText.trim()) {
             formData.append('rules_text', newTemplateRulesText.trim());
         }
+        // Add clear flags if editing and checked
+        if (editingTemplateId !== null) {
+            if (clearExistingImage) formData.append('clear_image', 'true');
+            if (clearExistingSound) formData.append('clear_sound', 'true');
+        }
+
 
         setIsUploading(true);
         setError(null);
 
-        fetch('http://localhost:3001/api/item-templates', { // Use new endpoint
-            method: 'POST',
-            body: formData,
-        })
-        .then(async response => {
-            if (!response.ok) {
-                let errorMsg = `HTTP error! status: ${response.status}`;
-                try { const errData = await response.json(); errorMsg = errData.error || errorMsg; }
-                catch (e) { /* Ignore */ }
-                throw new Error(errorMsg);
-            }
-            return response.json();
-        })
-        .then(data => {
-            alert(`Item Template "${newTemplateName}" created successfully!`);
-            // Reset form
-            setNewTemplateName('');
-            setNewTemplateImageFile(null);
-            setNewTemplateSoundFile(null);
-            setNewTemplateRulesText('');
-            // TODO: Clear file inputs visually if possible (might need refs or key change)
-            // Refetch templates
-            fetchItemTemplates();
-        })
-        .catch(err => {
-            console.error("Error creating item template:", err);
-            setError(`Failed to create template: ${err.message}`);
-        })
-        .finally(() => setIsUploading(false));
+        // Determine URL and Method based on editing state
+        const url = editingTemplateId
+            ? `http://localhost:3001/api/item-templates/${editingTemplateId}`
+            : 'http://localhost:3001/api/item-templates';
+        const method = editingTemplateId ? 'PUT' : 'POST';
+
+        fetch(url, { method, body: formData })
+            .then(async response => {
+                if (!response.ok) {
+                    let errorMsg = `HTTP error! status: ${response.status}`;
+                    try { const errData = await response.json(); errorMsg = errData.error || errorMsg; }
+                    catch (e) { /* Ignore */ }
+                    throw new Error(errorMsg);
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert(`Item Template "${newTemplateName}" ${editingTemplateId ? 'updated' : 'created'} successfully!`);
+                resetForm(); // Reset form fields and editing state
+                fetchItemTemplates(); // Refetch templates
+            })
+            .catch(err => {
+                console.error(`Error ${editingTemplateId ? 'updating' : 'creating'} item template:`, err);
+                setError(`Failed to ${editingTemplateId ? 'update' : 'create'} template: ${err.message}`);
+            })
+            .finally(() => setIsUploading(false));
     };
 
     return (
@@ -118,10 +161,11 @@ function ItemTemplateManager() {
             <h2>Item Template Manager</h2>
             <hr className="cs-hr" style={{ margin: '15px 0' }} />
 
-            {/* Create Template Form */}
-            <form onSubmit={handleCreateTemplate} style={{ marginBottom: '20px', padding: '15px', border: '1px dashed var(--border-color)' }}>
-                <h3>Create New Item Template</h3>
-                {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+            {/* Create/Edit Template Form */}
+            <form onSubmit={handleSubmit} style={{ marginBottom: '20px', padding: '15px', border: '1px dashed var(--border-color)' }}>
+                <h3>{editingTemplateId ? 'Edit Item Template (ID: ' + editingTemplateId + ')' : 'Create New Item Template'}</h3>
+                {/* Display general errors */}
+                {error && !isUploading && <p style={{ color: 'red' }}>Error: {error}</p>}
                 <div style={{ marginBottom: '10px' }}>
                     <label htmlFor="templateName" style={{ display: 'block', marginBottom: '3px' }}>Base Name:</label>
                     <input
@@ -142,9 +186,17 @@ function ItemTemplateManager() {
                         id="templateImage"
                         accept="image/*"
                         onChange={handleImageFileChange}
+                        ref={imageInputRef} // Add ref
                         className="cs-input"
                         style={{ width: '100%' }}
                     />
+                    {/* Show option to clear existing image only when editing */}
+                    {editingTemplateId !== null && templates.find(t => t.id === editingTemplateId)?.image_path && (
+                        <div style={{ fontSize: '0.8em', marginTop: '3px' }}>
+                            <input type="checkbox" id="clearImage" checked={clearExistingImage} onChange={(e) => setClearExistingImage(e.target.checked)} />
+                            <label htmlFor="clearImage" style={{ marginLeft: '4px' }}>Remove existing image</label>
+                        </div>
+                    )}
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                     <label htmlFor="templateSound" style={{ display: 'block', marginBottom: '3px' }}>Sound File (Optional):</label>
@@ -153,9 +205,17 @@ function ItemTemplateManager() {
                         id="templateSound"
                         accept="audio/*"
                         onChange={handleSoundFileChange}
+                        ref={soundInputRef} // Add ref
                         className="cs-input"
                         style={{ width: '100%' }}
                     />
+                     {/* Show option to clear existing sound only when editing */}
+                     {editingTemplateId !== null && templates.find(t => t.id === editingTemplateId)?.sound_path && (
+                        <div style={{ fontSize: '0.8em', marginTop: '3px' }}>
+                            <input type="checkbox" id="clearSound" checked={clearExistingSound} onChange={(e) => setClearExistingSound(e.target.checked)} />
+                            <label htmlFor="clearSound" style={{ marginLeft: '4px' }}>Remove existing sound</label>
+                        </div>
+                    )}
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                     <label htmlFor="templateRules" style={{ display: 'block', marginBottom: '3px' }}>Rules Text (Optional):</label>
@@ -170,8 +230,14 @@ function ItemTemplateManager() {
                 </div>
 
                 <StyledButton type="submit" disabled={isUploading} style={{ marginTop: '10px' }}>
-                    {isUploading ? 'Creating...' : 'Create Template'}
+                    {isUploading ? (editingTemplateId ? 'Updating...' : 'Creating...') : (editingTemplateId ? 'Update Template' : 'Create Template')}
                 </StyledButton>
+                {/* Add Cancel button when editing */}
+                {editingTemplateId !== null && (
+                     <StyledButton type="button" onClick={resetForm} style={{ marginTop: '10px', marginLeft: '10px' }}> {/* Removed variant */}
+                         Cancel Edit
+                     </StyledButton>
+                )}
             </form>
 
             <h3>Existing Item Templates</h3>
@@ -197,7 +263,14 @@ function ItemTemplateManager() {
                                     <br />
                                     <small>Created: {new Date(template.created_at).toLocaleString()}</small>
                                 </div>
-                                {/* Optional: Add preview/delete later */}
+                                {/* Edit Button */}
+                                <StyledButton
+                                    onClick={() => handleEditClick(template)}
+                                    // Removed size="small" and variant="secondary"
+                                    disabled={isUploading || editingTemplateId === template.id} // Disable if uploading or already editing this one
+                                >
+                                    Edit
+                                </StyledButton>
                             </div>
                         </li>
                     ))}

@@ -210,6 +210,137 @@ app.post('/api/item-templates', async (c) => {
     }
 });
 
+// PUT /api/item-templates/:id - Update an existing item template
+app.put('/api/item-templates/:id', async (c) => {
+    const idParam = c.req.param('id');
+    const id = parseInt(idParam, 10);
+    console.log(`PUT /api/item-templates/${id} requested`);
+
+    if (isNaN(id)) {
+        return c.json({ error: 'Invalid item template ID provided.' }, 400);
+    }
+
+    const savedFilePaths: string[] = []; // Track NEW files saved for potential rollback
+    let oldImagePath: string | null = null;
+    let oldSoundPath: string | null = null;
+
+    try {
+        // Fetch existing template to get old file paths for deletion
+        const selectStmt = db.prepare('SELECT image_path, sound_path FROM item_templates WHERE id = ?');
+        const existingTemplate = selectStmt.get(id) as { image_path: string | null, sound_path: string | null } | null;
+
+        if (!existingTemplate) {
+            return c.json({ error: 'Item template not found.' }, 404);
+        }
+        oldImagePath = existingTemplate.image_path;
+        oldSoundPath = existingTemplate.sound_path;
+
+        const formData = await c.req.formData();
+        const baseName = formData.get('base_name') as string;
+        const rulesText = formData.get('rules_text') as string | null; // Can be null to clear rules
+        const imageFile = formData.get('image_file') as File | null;
+        const soundFile = formData.get('sound_file') as File | null;
+        // Add flags to indicate if existing files should be cleared
+        const clearImage = formData.get('clear_image') === 'true';
+        const clearSound = formData.get('clear_sound') === 'true';
+
+        // Validation
+        if (!baseName || typeof baseName !== 'string' || baseName.trim() === '') {
+            return c.json({ error: 'Item template base_name is required.' }, 400);
+        }
+        // rulesText can be explicitly null/empty to clear it
+
+        const updateTemplateStmt = db.prepare(`
+            UPDATE item_templates
+            SET base_name = ?, image_path = ?, sound_path = ?, rules_text = ?
+            WHERE id = ?
+        `);
+
+        db.exec('BEGIN TRANSACTION');
+        let finalImagePath = oldImagePath;
+        let finalSoundPath = oldSoundPath;
+        let finalRulesText = rulesText?.trim() ?? null; // Use provided text or null
+
+        try {
+            // Handle Image Update/Clear
+            if (clearImage) {
+                finalImagePath = null; // Clear the path
+            } else if (imageFile) {
+                const newImagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
+                if (newImagePath) {
+                    savedFilePaths.push(join('.', newImagePath)); // Track new file for rollback
+                    finalImagePath = newImagePath; // Update path
+                } else {
+                    throw new Error('Failed to save new image file.');
+                }
+            } // If no new file and not clearing, keep old path
+
+            // Handle Sound Update/Clear
+            if (clearSound) {
+                finalSoundPath = null; // Clear the path
+            } else if (soundFile) {
+                const newSoundPath = await saveUploadedFile(soundFile, SOUNDS_DIR);
+                if (newSoundPath) {
+                    savedFilePaths.push(join('.', newSoundPath)); // Track new file for rollback
+                    finalSoundPath = newSoundPath; // Update path
+                } else {
+                    throw new Error('Failed to save new sound file.');
+                }
+            } // If no new file and not clearing, keep old path
+
+            // Update DB
+            updateTemplateStmt.run(
+                baseName.trim(),
+                finalImagePath,
+                finalSoundPath,
+                finalRulesText,
+                id
+            );
+
+            db.exec('COMMIT');
+
+            // Delete old files AFTER commit succeeds
+            if (clearImage && oldImagePath) {
+                 try { await unlink(join('.', oldImagePath)); console.log(`Deleted old image: ${oldImagePath}`); }
+                 catch(e) { console.error(`Error deleting old image ${oldImagePath}:`, e); }
+            } else if (imageFile && oldImagePath && oldImagePath !== finalImagePath) { // Only delete if replaced
+                 try { await unlink(join('.', oldImagePath)); console.log(`Deleted replaced image: ${oldImagePath}`); }
+                 catch(e) { console.error(`Error deleting replaced image ${oldImagePath}:`, e); }
+            }
+             if (clearSound && oldSoundPath) {
+                 try { await unlink(join('.', oldSoundPath)); console.log(`Deleted old sound: ${oldSoundPath}`); }
+                 catch(e) { console.error(`Error deleting old sound ${oldSoundPath}:`, e); }
+            } else if (soundFile && oldSoundPath && oldSoundPath !== finalSoundPath) { // Only delete if replaced
+                 try { await unlink(join('.', oldSoundPath)); console.log(`Deleted replaced sound: ${oldSoundPath}`); }
+                 catch(e) { console.error(`Error deleting replaced sound ${oldSoundPath}:`, e); }
+            }
+
+
+            console.log(`Item Template '${baseName}' (ID: ${id}) updated successfully.`);
+            return c.json({
+                message: 'Item template updated successfully',
+                template: { id, base_name: baseName.trim(), image_path: finalImagePath, sound_path: finalSoundPath, rules_text: finalRulesText }
+            });
+
+        } catch (error) {
+            console.error('Item template update transaction failed, rolling back:', error);
+            db.exec('ROLLBACK');
+            // Attempt to delete any NEW files saved during the failed transaction
+            console.log('Attempting to delete newly saved template files due to rollback:', savedFilePaths);
+            for (const filePath of savedFilePaths) {
+                try { await unlink(filePath); console.log(`Deleted rolled back file: ${filePath}`); }
+                catch (unlinkError) { console.error(`Error deleting rolled back file ${filePath}:`, unlinkError); }
+            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return c.json({ error: `Item template update failed: ${errorMessage}` }, 500);
+        }
+
+    } catch (error: any) {
+        console.error(`Error processing PUT /api/item-templates/${id}:`, error);
+        return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
+    }
+});
+
 
 // --- Case API Routes ---
 
@@ -247,24 +378,40 @@ app.get('/api/cases/:id', (c) => {
         // Fetch associated items by joining cases -> case_items -> item_templates
         const itemsStmt = db.prepare(`
             SELECT
-                -- Use override_name if available, otherwise use template's base_name
-                COALESCE(ci.override_name, it.base_name) as name,
+                ci.item_template_id, -- Include the template ID
+                ci.override_name,    -- Include the override name
                 ci.color,
-                it.image_path as image_url,  -- Alias path columns for consistency
+                it.base_name,        -- Include the base name from template
+                it.image_path as image_url,
                 it.sound_path as sound_url,
                 it.rules_text as rules
             FROM case_items ci
             JOIN item_templates it ON ci.item_template_id = it.id
             WHERE ci.case_id = ?
         `);
-        // Type needs to match the SELECT statement aliases
-        const items = itemsStmt.all(id) as Array<{
-            name: string;             // Effective name (override or base)
-            color: string;            // From case_items
-            image_url: string | null; // Path from item_templates
-            sound_url: string | null; // Path from item_templates
-            rules: string | null;     // Text from item_templates
+        // Type needs to match the SELECT statement columns/aliases
+        const itemsRaw = itemsStmt.all(id) as Array<{
+            item_template_id: number;
+            override_name: string | null;
+            color: string;
+            base_name: string;
+            image_url: string | null;
+            sound_url: string | null;
+            rules: string | null;
         }>;
+
+        // Process raw items to create the final structure for the frontend
+        const items = itemsRaw.map(item => ({
+            item_template_id: item.item_template_id, // Keep template ID for editing reference
+            name: item.override_name ?? item.base_name, // Use override or base name
+            color: item.color,
+            image_url: item.image_url,
+            sound_url: item.sound_url,
+            rules: item.rules,
+            // Include override_name separately if needed by frontend edit logic
+            override_name: item.override_name
+        }));
+
 
         const result = { ...caseDetails, items: items };
         return c.json(result);
@@ -393,6 +540,100 @@ app.post('/api/cases', async (c) => {
 
     } catch (error: any) {
         console.error('Error processing POST /api/cases (template linking):', error);
+         if (error instanceof SyntaxError) {
+             return c.json({ error: 'Invalid JSON request body.' }, 400);
+        }
+        return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
+    }
+});
+
+// PUT /api/cases/:id - Update an existing case and its item links
+app.put('/api/cases/:id', async (c) => {
+    const idParam = c.req.param('id');
+    const caseId = parseInt(idParam, 10);
+    console.log(`PUT /api/cases/${caseId} requested`);
+
+    if (isNaN(caseId)) {
+        return c.json({ error: 'Invalid case ID provided.' }, 400);
+    }
+
+    try {
+        const body = await c.req.json<CreateCaseBodyV4>(); // Reuse the same body structure as POST
+
+        // --- Basic Validation (same as POST) ---
+        if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+            return c.json({ error: 'Case name is required.' }, 400);
+        }
+        if (!Array.isArray(body.items) || body.items.length === 0) {
+            return c.json({ error: 'Case must contain at least one item.' }, 400);
+        }
+        for (const item of body.items) {
+             if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
+                 return c.json({ error: `Invalid or missing item_template_id for item. Must be a number.` }, 400);
+            }
+            if (!item.color || typeof item.color !== 'string' || item.color.trim() === '') {
+                return c.json({ error: `Each item must have a valid color. Failed item template ID: ${item.item_template_id}` }, 400);
+            }
+            if (item.override_name && typeof item.override_name !== 'string') {
+                 return c.json({ error: `Invalid override_name format for item template ID: ${item.item_template_id}. Must be a string or null.` }, 400);
+            }
+        }
+        // --- End Validation ---
+
+        // --- Database Update (Transaction) ---
+        const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ? WHERE id = ?');
+        const deleteOldItemsStmt = db.prepare('DELETE FROM case_items WHERE case_id = ?');
+        const insertItemLinkStmt = db.prepare(`
+            INSERT INTO case_items
+            (case_id, item_template_id, override_name, color)
+            VALUES (?, ?, ?, ?)
+        `);
+
+        // Check if case exists first
+        const checkCaseStmt = db.prepare('SELECT id FROM cases WHERE id = ?');
+        const existingCase = checkCaseStmt.get(caseId);
+        if (!existingCase) {
+             return c.json({ error: 'Case not found.' }, 404);
+        }
+
+
+        db.exec('BEGIN TRANSACTION');
+
+        try {
+            // 1. Update case details
+            updateCaseStmt.run(
+                body.name.trim(),
+                body.description?.trim() ?? null,
+                caseId
+            );
+
+            // 2. Delete old item links for this case
+            deleteOldItemsStmt.run(caseId);
+
+            // 3. Insert new item links
+            for (const item of body.items) {
+                insertItemLinkStmt.run(
+                    caseId,
+                    item.item_template_id,
+                    item.override_name?.trim() ?? null,
+                    item.color.trim()
+                );
+            }
+
+            db.exec('COMMIT');
+            console.log(`Case '${body.name}' (ID: ${caseId}) updated successfully with ${body.items.length} item links.`);
+            return c.json({ message: 'Case updated successfully', caseId: caseId }); // Return 200 OK
+
+        } catch (dbError) {
+            console.error(`Case update transaction failed for ID ${caseId}, rolling back:`, dbError);
+            db.exec('ROLLBACK');
+            const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+            return c.json({ error: `Database error during case update: ${errorMessage}` }, 500);
+        }
+        // --- End Database Update ---
+
+    } catch (error: any) {
+        console.error(`Error processing PUT /api/cases/${caseId}:`, error);
          if (error instanceof SyntaxError) {
              return c.json({ error: 'Invalid JSON request body.' }, 400);
         }

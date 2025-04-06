@@ -6,12 +6,31 @@ import StyledButton from './StyledButton';
 interface ItemTemplate {
     id: number;
     base_name: string;
-    // We don't strictly need the paths/text here, just ID and name for selection
 }
+
+// Define structure for Case List data
+interface CaseInfo {
+    id: number;
+    name: string;
+}
+
+// Define structure for full Case Data (including items for editing)
+interface FullCaseData {
+    id: number;
+    name: string;
+    description: string | null;
+    items: Array<{ // Structure returned by GET /api/cases/:id
+        item_template_id: number;
+        override_name: string | null;
+        color: string;
+        // We don't need the resolved name/urls here, just the IDs/color/override
+    }>;
+}
+
 
 // Define the structure for an item's state in the form (linking template)
 interface CaseItemState {
-  id: number; // For React key prop
+  id: number; // For React key prop (client-side only)
   item_template_id: number | null; // ID of the selected template
   override_name: string; // Optional name override for this instance
   color: string; // Color specific to this item in this case
@@ -29,38 +48,103 @@ const RARITY_COLORS = [
 ];
 
 function CreateCaseForm() {
+  // Form state
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemState[]>([
-    // Start with one empty item row, default color, null template ID
     { id: Date.now(), item_template_id: null, override_name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' },
   ]);
 
-  // State to hold available item templates fetched from backend
+  // State for available data
   const [availableTemplates, setAvailableTemplates] = useState<ItemTemplate[]>([]);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
-  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]); // For edit dropdown
 
-  // Fetch available item templates on component mount
+  // State for loading/error/editing
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [isLoadingCases, setIsLoadingCases] = useState(true); // Loading state for cases list
+  const [isSaving, setIsSaving] = useState(false); // For create/update button
+  const [error, setError] = useState<string | null>(null); // General error display
+  const [editingCaseId, setEditingCaseId] = useState<number | null>(null); // Track if editing
+
+  // Fetch available item templates and cases on component mount
   useEffect(() => {
-    const fetchTemplates = async () => {
+    const fetchInitialData = async () => {
         setIsLoadingTemplates(true);
-        setTemplateError(null);
+        setIsLoadingCases(true);
+        setError(null);
         try {
-            const response = await fetch(`http://localhost:3001/api/item-templates`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data: ItemTemplate[] = await response.json();
-            setAvailableTemplates(data);
+            // Fetch Templates
+            const templatesResponse = await fetch(`http://localhost:3001/api/item-templates`);
+            if (!templatesResponse.ok) throw new Error(`Failed to fetch item templates: ${templatesResponse.status}`);
+            const templatesData: ItemTemplate[] = await templatesResponse.json();
+            setAvailableTemplates(templatesData);
+
+             // Fetch Cases
+            const casesResponse = await fetch(`http://localhost:3001/api/cases`);
+            if (!casesResponse.ok) throw new Error(`Failed to fetch cases: ${casesResponse.status}`);
+            const casesData: CaseInfo[] = await casesResponse.json();
+            setAvailableCases(casesData);
+
         } catch (err) {
-            console.error(`Error fetching item templates:`, err);
-            setTemplateError(`Failed to load item templates. Please check the Item Template Manager.`);
-            setAvailableTemplates([]); // Clear on error
+            console.error(`Error fetching initial data:`, err);
+            setError(err instanceof Error ? err.message : 'An unknown error occurred');
+            setAvailableTemplates([]);
+            setAvailableCases([]);
         } finally {
             setIsLoadingTemplates(false);
+            setIsLoadingCases(false);
         }
     };
-    fetchTemplates();
+    fetchInitialData();
   }, []); // Empty dependency array means run once on mount
+
+  // Fetch full case details when editingCaseId changes
+  useEffect(() => {
+      if (editingCaseId === null) {
+          // Reset form if we stop editing (or are creating)
+          setCaseName('');
+          setCaseDescription('');
+          setItems([{ id: Date.now(), item_template_id: null, override_name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' }]);
+          return;
+      }
+
+      // Fetch details for the selected case
+      const fetchCaseDetails = async () => {
+          setIsLoadingCases(true); // Indicate loading case details
+          setError(null);
+          try {
+              const response = await fetch(`http://localhost:3001/api/cases/${editingCaseId}`);
+              if (!response.ok) {
+                   let errorMsg = `HTTP error! status: ${response.status}`;
+                   try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch(e){}
+                   throw new Error(errorMsg);
+              }
+              const data: FullCaseData = await response.json();
+
+              // Populate form state
+              setCaseName(data.name);
+              setCaseDescription(data.description ?? '');
+              // Map fetched items to the form's item state structure
+              setItems(data.items.map(item => ({
+                  id: Math.random(), // Generate temporary client-side ID for React key
+                  item_template_id: item.item_template_id,
+                  override_name: item.override_name ?? '',
+                  color: item.color,
+              })));
+
+          } catch (err) {
+              console.error(`Error fetching details for case ${editingCaseId}:`, err);
+              setError(err instanceof Error ? err.message : 'Failed to load case details');
+              // Optionally reset form or keep old data? Resetting might be safer.
+              setEditingCaseId(null); // Stop editing on error
+          } finally {
+              setIsLoadingCases(false);
+          }
+      };
+
+      fetchCaseDetails();
+
+  }, [editingCaseId]); // Re-run when editingCaseId changes
 
 
   // Calculate odds based on item counts per rarity (remains the same)
@@ -105,16 +189,14 @@ function CreateCaseForm() {
     setItems(newItems);
   };
 
-  // Function to handle saving the case (sending JSON with template IDs)
+  // Function to handle saving the case (Create or Update)
   const handleSaveCase = () => {
     // Basic validation
     if (!caseName.trim()) {
       alert('Please enter a case name.');
       return;
     }
-    // Validate items: must have a template selected and a color
     const validItems = items.filter(item => item.item_template_id !== null && item.color.trim());
-
     if (validItems.length === 0) {
         alert('Please add at least one item with an Item Template selected and a color.');
         return;
@@ -124,48 +206,59 @@ function CreateCaseForm() {
         return;
     }
 
-
-    // --- Prepare JSON data for the request body ---
+    // Prepare payload
     const caseDataPayload = {
       name: caseName.trim(),
-      description: caseDescription.trim(),
+      description: caseDescription.trim() || null, // Send null if empty
       items: validItems.map(({ item_template_id, override_name, color }) => ({
-        item_template_id: item_template_id, // Should not be null here due to filter
-        override_name: override_name.trim() || null, // Send null if override is empty
+        item_template_id: item_template_id,
+        override_name: override_name.trim() || null,
         color: color.trim(),
       })),
     };
 
+    // Determine URL and Method
+    const url = editingCaseId
+        ? `http://localhost:3001/api/cases/${editingCaseId}`
+        : 'http://localhost:3001/api/cases';
+    const method = editingCaseId ? 'PUT' : 'POST';
+
+    setIsSaving(true);
+    setError(null);
+
     // --- Send JSON data to backend API ---
-    fetch('http://localhost:3001/api/cases', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(caseDataPayload),
     })
     .then(async response => {
       if (!response.ok) {
         let errorMsg = `HTTP error! status: ${response.status}`;
-        try {
-            const text = await response.text(); console.error("Raw error response text:", text);
-            const errData = JSON.parse(text); errorMsg = errData.error || errorMsg;
-        } catch (e) { console.warn("Could not parse error response as JSON.", e); }
+        try { const text = await response.text(); console.error("Raw error response text:", text); const errData = JSON.parse(text); errorMsg = errData.error || errorMsg; }
+        catch (e) { console.warn("Could not parse error response as JSON.", e); }
         throw new Error(errorMsg);
       }
       return response.json();
     })
     .then(data => {
-      alert(`Case "${caseDataPayload.name}" created successfully with ID: ${data.caseId}`);
-      // Reset form
-      setCaseName('');
-      setCaseDescription('');
-      setItems([{ id: Date.now(), item_template_id: null, override_name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' }]);
+      alert(`Case "${caseDataPayload.name}" ${editingCaseId ? 'updated' : 'created'} successfully!`);
+      // Reset form and editing state
+      setEditingCaseId(null); // This will trigger the useEffect to reset the form
+      // Refetch case list if needed (e.g., if names changed) - could optimize later
+       setIsLoadingCases(true);
+       fetch(`http://localhost:3001/api/cases`)
+         .then(res => res.json())
+         .then(setAvailableCases)
+         .catch(err => console.error("Failed to refetch cases list:", err))
+         .finally(() => setIsLoadingCases(false));
     })
     .catch(error => {
-      console.error('Error saving case:', error);
-      alert(`Error saving case: ${error.message}`);
-    });
+      console.error(`Error ${editingCaseId ? 'updating' : 'saving'} case:`, error);
+      alert(`Error ${editingCaseId ? 'updating' : 'saving'} case: ${error.message}`);
+      setError(error.message); // Show error to user
+    })
+    .finally(() => setIsSaving(false));
   };
 
   // Helper to render template options
@@ -180,8 +273,37 @@ function CreateCaseForm() {
 
   return (
     <div style={{ padding: '20px', border: '1px solid var(--border-color)', borderRadius: '5px' }}>
-      <h2>Create New Case</h2>
+      {/* Case Selection for Editing */}
+       <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--border-color)' }}>
+          <label htmlFor="case-edit-select" style={{ marginRight: '10px', fontWeight: 'bold' }}>Edit Existing Case:</label>
+          <select
+              id="case-edit-select"
+              value={editingCaseId ?? ''}
+              onChange={(e) => setEditingCaseId(e.target.value ? Number(e.target.value) : null)}
+              disabled={isLoadingCases || isLoadingTemplates || isSaving}
+              className="cs-input"
+              style={{ minWidth: '250px', marginRight: '10px' }}
+          >
+              <option value="">-- Create New Case --</option>
+              {availableCases.map(caseInfo => (
+                  <option key={caseInfo.id} value={caseInfo.id}>
+                      {caseInfo.name} (ID: {caseInfo.id})
+                  </option>
+              ))}
+          </select>
+          {editingCaseId !== null && (
+              <StyledButton onClick={() => setEditingCaseId(null)} disabled={isSaving}> {/* Removed size="small" */}
+                  Clear Selection (Create New)
+              </StyledButton>
+          )}
+          {isLoadingCases && <span style={{ marginLeft: '10px' }}>Loading cases...</span>}
+      </div>
+
+      <h2>{editingCaseId ? `Edit Case (ID: ${editingCaseId})` : 'Create New Case'}</h2>
       <hr className="cs-hr" style={{ margin: '15px 0' }} />
+
+      {/* Display Errors */}
+      {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
 
       {/* Case Name and Description (remains the same) */}
       <div style={{ marginBottom: '15px' }}>
@@ -195,6 +317,7 @@ function CreateCaseForm() {
           className="cs-input"
           style={{ width: '100%' }}
           required
+          disabled={isSaving}
         />
       </div>
       <div style={{ marginBottom: '20px' }}>
@@ -206,15 +329,17 @@ function CreateCaseForm() {
           placeholder="A short description of the case contents"
           className="cs-input"
           style={{ width: '100%', minHeight: '60px' }}
+          disabled={isSaving}
         />
       </div>
 
       {/* Items Section */}
       <h3>Items</h3>
-      {templateError && <p style={{ color: 'red' }}>{templateError}</p>}
+      {/* Use the general 'error' state for template loading errors too */}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       {isLoadingTemplates && <p>Loading item templates...</p>}
 
-      {!isLoadingTemplates && items.map((item, index) => (
+      {!isLoadingTemplates && !error && items.map((item, index) => ( // Also check for error before mapping
         <React.Fragment key={item.id}>
           {/* Item Row */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center', borderBottom: '1px dashed var(--border-color)', paddingBottom: '15px' }}>
@@ -227,6 +352,7 @@ function CreateCaseForm() {
                     onChange={(e) => handleItemChange(index, 'item_template_id', e.target.value)}
                     className="cs-input"
                     required
+                    disabled={isSaving}
                  >
                      <option value="" disabled>-- Select Template --</option>
                      {renderTemplateOptions(availableTemplates)}
@@ -242,6 +368,7 @@ function CreateCaseForm() {
                     onChange={(e) => handleItemChange(index, 'override_name', e.target.value)}
                     placeholder="e.g., StatTrak™"
                     className="cs-input"
+                    disabled={isSaving}
                  />
              </div>
             {/* Color Dropdown */}
@@ -253,6 +380,7 @@ function CreateCaseForm() {
                     onChange={(e) => handleItemChange(index, 'color', e.target.value)}
                     className="cs-input"
                     required
+                    disabled={isSaving}
                  >
                     {RARITY_COLORS.map(colorOption => (
                         <option key={colorOption.value} value={colorOption.value}>
@@ -265,7 +393,7 @@ function CreateCaseForm() {
             <div style={{ flexBasis: '10%', textAlign: 'right' }}>
                 <StyledButton
                 onClick={() => removeItem(index)}
-                disabled={items.length <= 1}
+                disabled={items.length <= 1 || isSaving}
                 variant="danger"
                 style={{ padding: '5px 10px', minWidth: 'auto' }}
                 >
@@ -276,12 +404,12 @@ function CreateCaseForm() {
         </React.Fragment>
       ))}
 
-      <StyledButton onClick={addItem} style={{ marginRight: '10px' }} disabled={isLoadingTemplates}>
+      <StyledButton onClick={addItem} style={{ marginRight: '10px' }} disabled={isLoadingTemplates || isSaving}>
         Add Item Row
       </StyledButton>
 
-      <StyledButton onClick={handleSaveCase} style={{ marginTop: '20px' }} disabled={isLoadingTemplates}>
-        Save Case to Database
+      <StyledButton onClick={handleSaveCase} style={{ marginTop: '20px' }} disabled={isLoadingTemplates || isLoadingCases || isSaving}>
+        {isSaving ? 'Saving...' : (editingCaseId ? 'Update Case' : 'Save New Case')}
       </StyledButton>
     </div>
   );
