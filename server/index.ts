@@ -786,6 +786,65 @@ app.put('/api/cases/:id', async (c) => {
     }
 });
 
+// DELETE /api/cases/:id - Delete a case and its associated image
+app.delete('/api/cases/:id', async (c) => {
+    const idParam = c.req.param('id');
+    const caseId = parseInt(idParam, 10);
+    console.log(`DELETE /api/cases/${caseId} requested`);
+
+    if (isNaN(caseId)) {
+        return c.json({ error: 'Invalid case ID provided.' }, 400);
+    }
+
+    let imagePathToDelete: string | null = null;
+
+    try {
+        // 1. Find the image path before deleting the case record
+        const selectStmt = db.prepare('SELECT image_path FROM cases WHERE id = ?');
+        const caseData = selectStmt.get(caseId) as { image_path: string | null } | null;
+
+        if (!caseData) {
+            return c.json({ error: 'Case not found.' }, 404);
+        }
+        imagePathToDelete = caseData.image_path;
+
+        // 2. Delete the case record (FK constraint handles case_items)
+        const deleteStmt = db.prepare('DELETE FROM cases WHERE id = ?');
+        const result = deleteStmt.run(caseId);
+
+        if (result.changes === 0) {
+            // Should not happen if select worked, but good practice to check
+            console.warn(`Case ID ${caseId} found but delete operation affected 0 rows.`);
+            return c.json({ error: 'Case found but failed to delete.' }, 500);
+        }
+
+        console.log(`Case ID ${caseId} deleted successfully from database.`);
+
+        // 3. If an image path existed, try to delete the file
+        if (imagePathToDelete) {
+            try {
+                const fullPath = join('.', imagePathToDelete); // Assumes image_path starts with /uploads/...
+                await unlink(fullPath);
+                console.log(`Deleted associated case image: ${fullPath}`);
+            } catch (unlinkError: any) {
+                // Log error but don't fail the request, DB deletion was successful
+                if (unlinkError.code === 'ENOENT') {
+                     console.warn(`Associated image file not found, skipping deletion: ${imagePathToDelete}`);
+                } else {
+                    console.error(`Error deleting associated case image ${imagePathToDelete}:`, unlinkError);
+                }
+            }
+        }
+
+        return c.json({ message: 'Case deleted successfully.' });
+
+    } catch (dbError) {
+        console.error(`Error processing DELETE /api/cases/${caseId}:`, dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        return c.json({ error: `Database error during case deletion: ${errorMessage}` }, 500);
+    }
+});
+
 
 // --- Server Start ---
 const port = 3001;

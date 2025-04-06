@@ -384,6 +384,55 @@ function CreateCaseForm() {
     .finally(() => setIsSaving(false));
   };
 
+  // Function to handle deleting a case
+  const handleDeleteCase = () => {
+      if (editingCaseId === null) {
+          alert("No case selected to delete.");
+          return;
+      }
+
+      if (!window.confirm(`Are you sure you want to delete case "${caseName}" (ID: ${editingCaseId})? This action cannot be undone.`)) {
+          return;
+      }
+
+      setIsSaving(true); // Use the same saving state to disable buttons
+      setError(null);
+
+      fetch(`http://localhost:3001/api/cases/${editingCaseId}`, {
+          method: 'DELETE',
+      })
+      .then(async response => {
+          if (!response.ok) {
+              let errorMsg = `HTTP error! status: ${response.status}`;
+              try { const errData = await response.json(); errorMsg = errData.error || errorMsg; }
+              catch (e) { /* Ignore */ }
+              throw new Error(errorMsg);
+          }
+          return response.json();
+      })
+      .then(data => {
+          alert(`Case "${caseName}" deleted successfully!`);
+          // Reset form and editing state
+          setEditingCaseId(null); // This will trigger the useEffect to reset the form
+          // Refetch case list
+          setIsLoadingCases(true);
+          fetch(`http://localhost:3001/api/cases`)
+              .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
+              .then(setAvailableCases)
+              .catch(err => {
+                  console.error("Failed to refetch cases list after delete:", err);
+                  setError(err instanceof Error ? err.message : 'Failed to refetch cases list');
+              })
+              .finally(() => setIsLoadingCases(false));
+      })
+      .catch(error => {
+          console.error(`Error deleting case ${editingCaseId}:`, error);
+          alert(`Error deleting case: ${error.message}`);
+          setError(error.message);
+      })
+      .finally(() => setIsSaving(false));
+  };
+
   // Helper to render template options
   const renderTemplateOptions = (templates: ItemTemplate[]) => {
       return templates.map(template => (
@@ -415,9 +464,20 @@ function CreateCaseForm() {
               ))}
           </select>
           {editingCaseId !== null && (
-              <StyledButton onClick={() => setEditingCaseId(null)} disabled={isSaving}> {/* Removed size="small" */}
-                  Clear Selection (Create New)
-              </StyledButton>
+              <>
+                  <StyledButton onClick={() => setEditingCaseId(null)} disabled={isSaving} style={{ marginLeft: '10px' }}>
+                      Clear Selection (Create New)
+                  </StyledButton>
+                  {/* Add Delete Button */}
+                  <StyledButton
+                      onClick={handleDeleteCase}
+                      disabled={isSaving}
+                      variant="danger" // Use danger variant for delete
+                      style={{ marginLeft: '10px' }}
+                  >
+                      Delete Selected Case
+                  </StyledButton>
+              </>
           )}
           {isLoadingCases && <span style={{ marginLeft: '10px' }}>Loading cases...</span>}
       </div>
