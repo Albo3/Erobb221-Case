@@ -1,7 +1,8 @@
 import React from 'react';
 import CaseOpener from './CaseOpener';
-import CreateCaseForm from './CreateCaseForm'; // Import the new form component
-import Tabs, { Tab } from './Tabs'; // Import Tabs component
+import CreateCaseForm from './CreateCaseForm';
+import ItemTemplateManager from './ItemTemplateManager'; // Import the renamed component
+import Tabs, { Tab } from './Tabs';
 import '../styles/style.css';
 import './CaseOpener.css';
 // Assuming Tabs.css might be needed if it exists and has styles
@@ -25,8 +26,13 @@ function App() {
           </main>
         </Tab>
         <Tab label="Create Case">
-           <main> {/* Keep main semantic tag inside the tab content */}
-             <CreateCaseForm />
+           <main>
+            <CreateCaseForm />
+           </main>
+        </Tab>
+        <Tab label="Item Templates"> {/* Update tab label */}
+           <main>
+             <ItemTemplateManager /> {/* Use the renamed component */}
            </main>
         </Tab>
       </Tabs>
