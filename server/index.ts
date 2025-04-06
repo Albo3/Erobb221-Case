@@ -467,9 +467,13 @@ async function saveUploadedFile(file: File, targetDir: string): Promise<string |
     try {
         const uniqueSuffix = randomUUID();
         const extension = extname(file.name) || ''; // Get file extension
-        const filename = uniqueSuffix + extension;
+        // Extract and sanitize original filename (remove extension, replace invalid chars)
+        const originalNameWithoutExt = file.name.substring(0, file.name.length - extension.length);
+        const sanitizedOriginalName = originalNameWithoutExt.replace(/[^a-zA-Z0-9_.-]/g, '_'); // Replace non-alphanumeric/dot/dash/underscore with underscore
+        // Construct new filename: UUID-SanitizedOriginalName.ext
+        const filename = `${uniqueSuffix}-${sanitizedOriginalName}${extension}`;
         const savePath = join(targetDir, filename);
-        console.log(`[saveUploadedFile] Attempting to save to: ${savePath}`);
+        console.log(`[saveUploadedFile] Attempting to save to: ${savePath} (Original: ${file.name})`);
 
         await Bun.write(savePath, file);
 

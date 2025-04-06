@@ -334,7 +334,12 @@ function ItemTemplateManager() {
                             className="cs-input" style={{ width: '100%' }}
                          >
                              <option value="">-- Select Existing Image --</option>
-                             {existingImagePaths.map(path => <option key={path} value={path}>{path.split('/').pop()}</option>)}
+                             {existingImagePaths.map(path => {
+                                const fullFilename = path.split('/').pop() || '';
+                                const firstHyphenIndex = fullFilename.indexOf('-');
+                                const displayName = firstHyphenIndex !== -1 ? fullFilename.substring(firstHyphenIndex + 1) : fullFilename;
+                                return <option key={path} value={path}>{displayName}</option>;
+                             })}
                          </select>
                     </div>
                      {/* Clear Option (only when editing and image exists) */}
@@ -374,7 +379,12 @@ function ItemTemplateManager() {
                             className="cs-input" style={{ width: '100%' }}
                         >
                             <option value="">-- Select Existing Sound --</option>
-                            {existingSoundPaths.map(path => <option key={path} value={path}>{path.split('/').pop()}</option>)}
+                            {existingSoundPaths.map(path => {
+                                const fullFilename = path.split('/').pop() || '';
+                                const firstHyphenIndex = fullFilename.indexOf('-');
+                                const displayName = firstHyphenIndex !== -1 ? fullFilename.substring(firstHyphenIndex + 1) : fullFilename;
+                                return <option key={path} value={path}>{displayName}</option>;
+                            })}
                         </select>
                     </div>
                      {/* Clear Option (only when editing and sound exists) */}
