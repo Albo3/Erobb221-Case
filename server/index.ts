@@ -142,6 +142,10 @@ app.post('/api/item-templates', async (c) => {
         const rulesText = formData.get('rules_text') as string | null;
         const imageFile = formData.get('image_file') as File | null;
         const soundFile = formData.get('sound_file') as File | null;
+        // Get selected existing paths (if provided)
+        const existingImagePath = formData.get('existing_image_path') as string | null;
+        const existingSoundPath = formData.get('existing_sound_path') as string | null;
+
 
         // Validation
         if (!baseName || typeof baseName !== 'string' || baseName.trim() === '') {
@@ -158,12 +162,27 @@ app.post('/api/item-templates', async (c) => {
 
         db.exec('BEGIN TRANSACTION');
         try {
-            // Save files first (if they exist)
-            const imagePath = imageFile ? await saveUploadedFile(imageFile, IMAGES_DIR) : null;
-            if (imagePath) savedFilePaths.push(join('.', imagePath));
+            let imagePath: string | null = null;
+            let soundPath: string | null = null;
 
-            const soundPath = soundFile ? await saveUploadedFile(soundFile, SOUNDS_DIR) : null;
-            if (soundPath) savedFilePaths.push(join('.', soundPath));
+            // Determine final image path: New file takes precedence over existing selection
+            if (imageFile) {
+                imagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
+                if (imagePath) savedFilePaths.push(join('.', imagePath)); // Track for rollback
+                else throw new Error('Failed to save new image file.');
+            } else if (existingImagePath) {
+                imagePath = existingImagePath; // Use selected existing path
+            } // else: imagePath remains null
+
+            // Determine final sound path: New file takes precedence over existing selection
+             if (soundFile) {
+                soundPath = await saveUploadedFile(soundFile, SOUNDS_DIR);
+                if (soundPath) savedFilePaths.push(join('.', soundPath)); // Track for rollback
+                 else throw new Error('Failed to save new sound file.');
+            } else if (existingSoundPath) {
+                soundPath = existingSoundPath; // Use selected existing path
+            } // else: soundPath remains null
+
 
             // Insert template into DB
             const templateResult = insertTemplateStmt.get(
@@ -240,7 +259,10 @@ app.put('/api/item-templates/:id', async (c) => {
         const rulesText = formData.get('rules_text') as string | null; // Can be null to clear rules
         const imageFile = formData.get('image_file') as File | null;
         const soundFile = formData.get('sound_file') as File | null;
-        // Add flags to indicate if existing files should be cleared
+        // Get selected existing paths (if provided)
+        const existingImagePath = formData.get('existing_image_path') as string | null;
+        const existingSoundPath = formData.get('existing_sound_path') as string | null;
+        // Flags to indicate if existing files should be cleared
         const clearImage = formData.get('clear_image') === 'true';
         const clearSound = formData.get('clear_sound') === 'true';
 
@@ -262,31 +284,28 @@ app.put('/api/item-templates/:id', async (c) => {
         let finalRulesText = rulesText?.trim() ?? null; // Use provided text or null
 
         try {
-            // Handle Image Update/Clear
+            // Determine final image path based on priority: Clear > New File > Existing Path > Keep Old
             if (clearImage) {
-                finalImagePath = null; // Clear the path
+                finalImagePath = null;
             } else if (imageFile) {
                 const newImagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
-                if (newImagePath) {
-                    savedFilePaths.push(join('.', newImagePath)); // Track new file for rollback
-                    finalImagePath = newImagePath; // Update path
-                } else {
-                    throw new Error('Failed to save new image file.');
-                }
-            } // If no new file and not clearing, keep old path
+                if (newImagePath) { savedFilePaths.push(join('.', newImagePath)); finalImagePath = newImagePath; }
+                else { throw new Error('Failed to save new image file.'); }
+            } else if (existingImagePath) {
+                 finalImagePath = existingImagePath; // Use selected existing path
+            } // else: finalImagePath remains oldImagePath (default)
 
-            // Handle Sound Update/Clear
+             // Determine final sound path based on priority: Clear > New File > Existing Path > Keep Old
             if (clearSound) {
-                finalSoundPath = null; // Clear the path
+                finalSoundPath = null;
             } else if (soundFile) {
                 const newSoundPath = await saveUploadedFile(soundFile, SOUNDS_DIR);
-                if (newSoundPath) {
-                    savedFilePaths.push(join('.', newSoundPath)); // Track new file for rollback
-                    finalSoundPath = newSoundPath; // Update path
-                } else {
-                    throw new Error('Failed to save new sound file.');
-                }
-            } // If no new file and not clearing, keep old path
+                 if (newSoundPath) { savedFilePaths.push(join('.', newSoundPath)); finalSoundPath = newSoundPath; }
+                 else { throw new Error('Failed to save new sound file.'); }
+            } else if (existingSoundPath) {
+                finalSoundPath = existingSoundPath; // Use selected existing path
+            } // else: finalSoundPath remains oldSoundPath (default)
+
 
             // Update DB
             updateTemplateStmt.run(
@@ -299,20 +318,15 @@ app.put('/api/item-templates/:id', async (c) => {
 
             db.exec('COMMIT');
 
-            // Delete old files AFTER commit succeeds
-            if (clearImage && oldImagePath) {
-                 try { await unlink(join('.', oldImagePath)); console.log(`Deleted old image: ${oldImagePath}`); }
-                 catch(e) { console.error(`Error deleting old image ${oldImagePath}:`, e); }
-            } else if (imageFile && oldImagePath && oldImagePath !== finalImagePath) { // Only delete if replaced
-                 try { await unlink(join('.', oldImagePath)); console.log(`Deleted replaced image: ${oldImagePath}`); }
-                 catch(e) { console.error(`Error deleting replaced image ${oldImagePath}:`, e); }
+            // Delete old files AFTER commit succeeds, only if cleared or replaced by a NEW file upload
+            // Don't delete if just selecting a different existing path
+            if (oldImagePath && (clearImage || (imageFile && oldImagePath !== finalImagePath))) {
+                 try { await unlink(join('.', oldImagePath)); console.log(`Deleted old/replaced image: ${oldImagePath}`); }
+                 catch(e) { console.error(`Error deleting old/replaced image ${oldImagePath}:`, e); }
             }
-             if (clearSound && oldSoundPath) {
-                 try { await unlink(join('.', oldSoundPath)); console.log(`Deleted old sound: ${oldSoundPath}`); }
-                 catch(e) { console.error(`Error deleting old sound ${oldSoundPath}:`, e); }
-            } else if (soundFile && oldSoundPath && oldSoundPath !== finalSoundPath) { // Only delete if replaced
-                 try { await unlink(join('.', oldSoundPath)); console.log(`Deleted replaced sound: ${oldSoundPath}`); }
-                 catch(e) { console.error(`Error deleting replaced sound ${oldSoundPath}:`, e); }
+             if (oldSoundPath && (clearSound || (soundFile && oldSoundPath !== finalSoundPath))) {
+                 try { await unlink(join('.', oldSoundPath)); console.log(`Deleted old/replaced sound: ${oldSoundPath}`); }
+                 catch(e) { console.error(`Error deleting old/replaced sound ${oldSoundPath}:`, e); }
             }
 
 
@@ -338,6 +352,21 @@ app.put('/api/item-templates/:id', async (c) => {
     } catch (error: any) {
         console.error(`Error processing PUT /api/item-templates/${id}:`, error);
         return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
+    }
+});
+
+// GET /api/existing-assets - Fetch distinct existing image/sound paths from templates
+app.get('/api/existing-assets', (c) => {
+    console.log(`GET /api/existing-assets requested`);
+    try {
+        const imageStmt = db.prepare('SELECT DISTINCT image_path FROM item_templates WHERE image_path IS NOT NULL');
+        const soundStmt = db.prepare('SELECT DISTINCT sound_path FROM item_templates WHERE sound_path IS NOT NULL');
+        const images = imageStmt.all().map((row: any) => row.image_path);
+        const sounds = soundStmt.all().map((row: any) => row.sound_path);
+        return c.json({ images, sounds });
+    } catch (dbError) {
+        console.error('Database error fetching existing assets:', dbError);
+        return c.json({ error: 'Database error fetching existing assets.' }, 500);
     }
 });
 
