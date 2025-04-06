@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import StyledButton from './StyledButton';
 import './CaseOpener.css';
 // Removed direct JSON import
+// Removed import caseSoundUrl from '/public/sounds/case.mp3';
 
 // Define interfaces for case data structure (CaseItem remains the same)
 interface CaseItem {
@@ -29,7 +30,7 @@ interface CaseInfo {
 
 
 const REEL_ITEM_WIDTH = 100; // Width of each item in pixels + margin
-const SPIN_DURATION = 3000; // Duration of spin animation in ms
+const SPIN_DURATION = 6000; // Duration of spin animation in ms (Increased to 6s)
 
 // Define standard CS:GO rarity colors and names (copied from CreateCaseForm)
 const RARITY_COLORS = [
@@ -46,13 +47,15 @@ function CaseOpener() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
+  const [volume, setVolume] = useState(0.5); // State for volume (0 to 1)
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current audio instance
+  const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current ITEM sound instance
+  const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance
 
   // Effect to fetch the list of available cases on mount
   useEffect(() => {
@@ -138,6 +141,18 @@ function CaseOpener() {
 
   }, [selectedCaseId]); // Dependency array includes selectedCaseId
 
+  // Effect to update volume of currently playing sounds when slider changes
+  useEffect(() => {
+    if (audioRef.current) { // Update item sound volume
+      // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
+      audioRef.current.volume = volume;
+    }
+    if (caseAudioRef.current) { // Update case opening sound volume
+      // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
+      caseAudioRef.current.volume = volume;
+    }
+  }, [volume]); // Run this effect when volume state changes
+
   // Function to get a random item based on rarity distribution (color)
   const getRandomItem = (): CaseItem | null => {
       if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
@@ -191,13 +206,41 @@ function CaseOpener() {
     // Check if spinning or if case data isn't loaded
     if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
 
-    // Stop any currently playing sound before starting a new spin
+    // Stop any currently playing sounds (both item and case opening) before starting a new spin
     if (audioRef.current) {
-        console.log("[CaseOpener] Stopping previous sound.");
+        console.log("[CaseOpener] Stopping previous item sound.");
         audioRef.current.pause();
         audioRef.current.src = ''; // Detach source
         audioRef.current = null;
     }
+    if (caseAudioRef.current) {
+        console.log("[CaseOpener] Stopping previous case opening sound.");
+        caseAudioRef.current.pause();
+        caseAudioRef.current.src = ''; // Detach source
+        caseAudioRef.current = null;
+    }
+
+    // Play the case opening sound
+    try {
+        const caseSoundUrl = 'http://localhost:3001/sounds/case.mp3'; // Use full URL from backend server
+        console.log(`[CaseOpener] Attempting to play case opening sound from backend URL: ${caseSoundUrl}`);
+        const newCaseAudio = new Audio(caseSoundUrl); // Use the backend URL
+        newCaseAudio.volume = volume; // Use current volume state
+        caseAudioRef.current = newCaseAudio; // Store the new audio instance
+        newCaseAudio.play().catch(e => {
+            console.error("Error playing case opening sound:", e);
+            caseAudioRef.current = null; // Clear ref on playback error
+        });
+        // Optional: Clear ref when audio finishes playing naturally
+        newCaseAudio.onended = () => {
+            console.log("[CaseOpener] Case opening sound finished playing.");
+            // Don't clear ref here, might be needed by volume slider or stopped later
+        };
+    } catch (e) {
+        console.error("Error creating case opening audio object:", e);
+        caseAudioRef.current = null; // Clear ref if object creation fails
+    }
+
 
     const currentWinningItem = getRandomItem();
     if (!currentWinningItem) {
@@ -264,6 +307,13 @@ function CaseOpener() {
       }
       // --- End Log details ---
 
+      // Stop the case opening sound first
+      if (caseAudioRef.current) {
+          console.log("[CaseOpener] Stopping case opening sound on reveal.");
+          caseAudioRef.current.pause();
+          caseAudioRef.current.src = '';
+          caseAudioRef.current = null;
+      }
 
       // --- Play Item Sound ---
       if (currentWinningItem?.sound_url) { // Play sound associated with the WON item
@@ -273,6 +323,7 @@ function CaseOpener() {
               const fullSoundUrl = backendOrigin + currentWinningItem.sound_url;
               console.log(`[CaseOpener] Attempting to play sound from: ${fullSoundUrl}`);
               const newAudio = new Audio(fullSoundUrl);
+              newAudio.volume = volume; // Use volume state
               audioRef.current = newAudio; // Store the new audio instance
               newAudio.play().catch(e => {
                   console.error("Error playing item sound:", e);
@@ -304,11 +355,13 @@ function CaseOpener() {
 
   return (
     <div style={{ padding: '20px' }}>
-      {/* Case Selection Dropdown */}
-      <div style={{ marginBottom: '20px' }}>
-          <label htmlFor="case-select" style={{ marginRight: '10px' }}>Select Case:</label>
-          <select
-              id="case-select"
+      {/* Top Controls: Case Selection and Volume */}
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+          {/* Case Selection */}
+          <div>
+              <label htmlFor="case-select" style={{ marginRight: '10px' }}>Select Case:</label>
+              <select
+                  id="case-select"
               value={selectedCaseId}
               onChange={(e) => setSelectedCaseId(e.target.value)}
               disabled={isLoading || (availableCases.length === 0 && !currentCaseData)} // Disable if loading or no cases and no fallback
@@ -322,10 +375,26 @@ function CaseOpener() {
                       {caseInfo.name} (ID: {caseInfo.id})
                   </option>
               ))}
-          </select>
-          {/* Adjust message based on whether fallback is loaded */}
-          {availableCases.length === 0 && !isLoading && !currentCaseData && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
-          {availableCases.length === 0 && !isLoading && currentCaseData?.id === 0 && <span style={{ marginLeft: '10px', color: 'lightblue' }}>Showing Default Case</span>}
+              </select>
+              {/* Adjust message based on whether fallback is loaded */}
+              {availableCases.length === 0 && !isLoading && !currentCaseData && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
+              {availableCases.length === 0 && !isLoading && currentCaseData?.id === 0 && <span style={{ marginLeft: '10px', color: 'lightblue' }}>Showing Default Case</span>}
+          </div>
+
+          {/* Volume Slider */}
+          <div className="cs-slider" style={{ maxWidth: '200px' /* Adjusted width */ }}>
+            <div className="ruler"></div>
+            <input
+              id="volume-range"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+            />
+            <label htmlFor="volume-range">Volume: {Math.round(volume * 100)}%</label>
+          </div>
       </div>
 
       {/* Display Loading / Error / Case Info */}
@@ -354,6 +423,8 @@ function CaseOpener() {
                  {/* Center marker */}
                 <div className="case-opener-marker"></div>
               </div>
+
+              {/* Removed Volume Slider from here */}
 
               <StyledButton onClick={startSpin} disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0} style={{ marginTop: '20px' }}>
                 {isSpinning ? 'Opening...' : 'Open Case'}

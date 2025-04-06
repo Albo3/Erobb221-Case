@@ -112,6 +112,10 @@ app.use('/api/*', cors({
 // Serve files from './uploads' directory when URL path starts with '/uploads/'
 app.use('/uploads/*', serveStatic({ root: './' }));
 
+// Static file serving for the specific case opening sound
+// Serve './server/sounds/case.mp3' when URL path is exactly '/sounds/case.mp3'
+app.use('/sounds/case.mp3', serveStatic({ path: './server/sounds/case.mp3' }));
+
 
 // --- API Routes ---
 app.get('/', (c) => c.text('Hono Server Running! Item Template management enabled.'));
