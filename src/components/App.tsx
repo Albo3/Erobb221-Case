@@ -45,7 +45,7 @@ function App() {
   // Handler for receiving a new unboxed item from CaseOpener
   const handleNewUnbox = (newItem: CaseItem) => {
       setUnboxedHistory(prevHistory => {
-          const updatedHistory = [newItem, ...prevHistory].slice(0, 10); // Add to start, limit to 10
+          const updatedHistory = [newItem, ...prevHistory].slice(0, 20); // Add to start, limit to 20
           // Save updated history to localStorage
           try {
               localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
@@ -60,15 +60,17 @@ function App() {
   // useEffect(() => { ... }, []); // No longer strictly needed here
 
   return (
-    // Removed top margin (changed '20px auto' to '0 auto 20px auto')
-    // Reduced bottom margin for main container
-    <div style={{ maxWidth: '800px', margin: '0 auto 10px auto', padding: '20px' }}>
+    // Removed maxWidth constraint to allow content to expand
+    // Kept padding and bottom margin
+    <div style={{ margin: '0 auto 10px auto', padding: '20px' }}>
       {/* Updated Header with Controls */}
       {/* Reduced marginBottom and paddingBottom */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '5px' }}>
-        {/* Left Side: Title/Subtitle */}
-        <div style={{ textAlign: 'left' }}>
-          <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
+      {/* Wrap header content for centering */}
+      <header style={{ marginBottom: '10px', borderBottom: '1px solid var(--border-color)', paddingBottom: '5px' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Left Side: Title/Subtitle */}
+          <div style={{ textAlign: 'left' }}>
+            <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
             Erobb221 Case Manager
           </h1>
           <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}>Open and Create Cases</p>
@@ -103,13 +105,14 @@ function App() {
             </label>
           </div>
         </div>
+        </div> {/* Close centering wrapper div */}
       </header>
 
       {/* Main Content Area with History Panel */}
       <div style={{ display: 'flex', gap: '20px' }}> {/* Flex container for main content + history */}
 
-        {/* Left Column (Tabs or CaseOpener) */}
-        <div style={{ flexGrow: 1 }}>
+        {/* Left Column (Tabs or CaseOpener) - Apply centering styles here */}
+        <div style={{ flexGrow: 1, maxWidth: '800px', margin: '0 auto' }}>
           {isAdminMode ? (
             <Tabs>
               <Tab label="Open Case">
