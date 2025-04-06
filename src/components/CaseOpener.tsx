@@ -52,6 +52,7 @@ function CaseOpener() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current audio instance
 
   // Effect to fetch the list of available cases on mount
   useEffect(() => {
@@ -190,7 +191,13 @@ function CaseOpener() {
     // Check if spinning or if case data isn't loaded
     if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
 
-     // Sound playing moved to after item is won
+    // Stop any currently playing sound before starting a new spin
+    if (audioRef.current) {
+        console.log("[CaseOpener] Stopping previous sound.");
+        audioRef.current.pause();
+        audioRef.current.src = ''; // Detach source
+        audioRef.current = null;
+    }
 
     const currentWinningItem = getRandomItem();
     if (!currentWinningItem) {
@@ -264,11 +271,21 @@ function CaseOpener() {
               // Construct the full URL by prepending the backend origin
               const backendOrigin = 'http://localhost:3001';
               const fullSoundUrl = backendOrigin + currentWinningItem.sound_url;
-              console.log(`[CaseOpener] Attempting to play sound from: ${fullSoundUrl}`); // Add logging
-              const audio = new Audio(fullSoundUrl);
-              audio.play().catch(e => console.error("Error playing item sound:", e));
+              console.log(`[CaseOpener] Attempting to play sound from: ${fullSoundUrl}`);
+              const newAudio = new Audio(fullSoundUrl);
+              audioRef.current = newAudio; // Store the new audio instance
+              newAudio.play().catch(e => {
+                  console.error("Error playing item sound:", e);
+                  audioRef.current = null; // Clear ref on playback error
+              });
+              // Optional: Clear ref when audio finishes playing naturally
+              newAudio.onended = () => {
+                  console.log("[CaseOpener] Sound finished playing.");
+                  audioRef.current = null;
+              };
           } catch (e) {
               console.error("Error creating item audio object:", e);
+              audioRef.current = null; // Clear ref if object creation fails
           }
       }
       // --- End Play Item Sound ---
