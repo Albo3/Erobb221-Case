@@ -47,6 +47,18 @@ const RARITY_COLORS = [
     { name: 'Exceedingly Rare', value: '#ffd700' },
 ];
 
+// Define weights based on rarity colors (copied from CaseOpener for consistency)
+const rarityWeights: { [colorValue: string]: number } = {
+    [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, // Consumer Grade
+    [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,  // Industrial Grade
+    [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  // Mil-Spec
+    [RARITY_COLORS[3]?.value ?? '#8847ff']: 10,  // Restricted
+    [RARITY_COLORS[4]?.value ?? '#d32ce6']: 5,   // Classified
+    [RARITY_COLORS[5]?.value ?? '#eb4b4b']: 2,   // Covert
+    [RARITY_COLORS[6]?.value ?? '#ffd700']: 1,   // Exceedingly Rare
+};
+
+
 function CreateCaseForm() {
   // Form state
   const [caseName, setCaseName] = useState('');
@@ -155,6 +167,14 @@ function CreateCaseForm() {
       }
       return counts;
   }, [items]);
+
+  // Calculate total weight based on current items and their colors
+  const totalWeight = useMemo(() => {
+      return items.reduce((sum, item) => {
+          const weight = rarityWeights[item.color] || 1; // Default weight if color somehow not found
+          return sum + weight;
+      }, 0);
+  }, [items]); // Recalculate when items array changes
 
   const totalItems = useMemo(() => items.length, [items]);
 
@@ -388,6 +408,13 @@ function CreateCaseForm() {
                         </option>
                     ))}
                  </select>
+                 {/* Display Percentage Chance */}
+                 <span style={{ fontSize: '0.8em', marginLeft: '5px', color: 'var(--secondary-text)' }}>
+                     ({totalWeight > 0
+                         ? ((rarityWeights[item.color] || 1) / totalWeight * 100).toFixed(2)
+                         : (items.length === 1 ? '100.00' : '0.00')
+                     }%)
+                 </span>
              </div>
             {/* Remove Button */}
             <div style={{ flexBasis: '10%', textAlign: 'right' }}>

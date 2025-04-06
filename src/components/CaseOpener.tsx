@@ -29,7 +29,7 @@ interface CaseInfo {
 }
 
 
-const REEL_ITEM_WIDTH = 100; // Width of each item in pixels + margin
+const REEL_ITEM_WIDTH = 120; // Width of each item in pixels (now matches height, no margin)
 const SPIN_DURATION = 6000; // Duration of spin animation in ms (Increased to 6s)
 
 // Define standard CS:GO rarity colors and names (copied from CreateCaseForm)
@@ -413,10 +413,22 @@ function CaseOpener() {
           {reelItems.map((item, index) => (
             <div
               key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
-              className="case-opener-item"
+              // Conditionally add 'no-image' class if image_url is missing
+              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
               style={{ color: item.color || 'white' }} // Use color from item data
             >
-              {item.name}
+              {/* Wrap name in a span for specific styling */}
+              <span className="case-opener-item-name">{item.name}</span>
+              {/* Add image if URL exists */}
+              {item.image_url && (
+                <img
+                  src={`http://localhost:3001${item.image_url}`}
+                  alt={item.name}
+                  className="case-opener-item-image"
+                  // Basic error handling for image loading
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                />
+              )}
             </div>
           ))}
         </div>

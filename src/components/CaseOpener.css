@@ -16,23 +16,50 @@
 }
 
 .case-opener-item {
-  min-width: 90px; /* Width of each item */
+  min-width: 120px; /* Width of each item (matches viewport height) */
   height: 100%;
   display: flex;
+  flex-direction: column; /* Stack items vertically */
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start; /* Align content to the top */
   border-right: 1px solid var(--border-dark);
   border-left: 1px solid var(--border-dark);
-  margin: 0 5px; /* Margin between items */
+  margin: 0; /* Remove margin between items */
   padding: 10px;
   text-align: center;
   font-weight: bold;
-  font-size: 0.9em;
+  /* font-size: 0.9em; */ /* Font size moved to specific element */
   background-color: var(--bg); /* Background for items */
   box-sizing: border-box;
   white-space: normal; /* Allow text wrapping */
   overflow-wrap: break-word;
+  overflow: hidden; /* Hide potential overflow from image/text */
 }
+
+/* Center content vertically ONLY when there's no image */
+.case-opener-item.no-image {
+  justify-content: center;
+}
+
+/* Style for the item name text */
+.case-opener-item-name {
+  font-size: 1.1em; /* Increased font size */
+  -webkit-text-stroke: 1px black; /* Black outline */
+  paint-order: stroke fill; /* Ensure stroke is behind fill */
+  margin-bottom: 5px; /* Space between text and image */
+  display: block; /* Ensure it takes block space */
+  width: 100%; /* Take full width for centering */
+}
+
+/* Style for the item image */
+.case-opener-item-image {
+  max-width: 90%; /* Limit image width */
+  max-height: 60px; /* Limit image height */
+  object-fit: contain; /* Maintain aspect ratio */
+  display: block; /* Ensure it takes block space */
+  margin: 0 auto; /* Center image horizontally */
+}
+
 
 .case-opener-marker {
   position: absolute;
