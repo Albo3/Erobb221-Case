@@ -38,3 +38,5 @@ vps.md
 
 # Database Files
 /database.sqlite*
+database.sqlite-shm
+database.sqlite-wal
