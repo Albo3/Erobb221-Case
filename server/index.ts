@@ -110,11 +110,11 @@ app.use('/api/*', cors({
 
 // Static file serving for uploads
 // Serve files from './uploads' directory when URL path starts with '/uploads/'
+// This should handle /uploads/images/* and /uploads/sounds/*
 app.use('/uploads/*', serveStatic({ root: './' }));
 
-// Static file serving for the specific case opening sound
-// Serve './server/sounds/case.mp3' when URL path is exactly '/sounds/case.mp3'
-app.use('/sounds/case.mp3', serveStatic({ path: './server/sounds/case.mp3' }));
+// Remove the previous specific route for /sounds/case.mp3 as it's now incorrect
+// app.use('/sounds/case.mp3', serveStatic({ path: './server/sounds/case.mp3' }));
 
 
 // --- API Routes ---

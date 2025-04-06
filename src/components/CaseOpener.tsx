@@ -222,9 +222,9 @@ function CaseOpener() {
 
     // Play the case opening sound
     try {
-        const caseSoundUrl = 'http://localhost:3001/sounds/case.mp3'; // Use full URL from backend server
-        console.log(`[CaseOpener] Attempting to play case opening sound from backend URL: ${caseSoundUrl}`);
-        const newCaseAudio = new Audio(caseSoundUrl); // Use the backend URL
+        const caseSoundUrl = 'http://localhost:3001/uploads/sounds/case.mp3'; // Correct URL via /uploads/ route
+        console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
+        const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
         newCaseAudio.volume = volume; // Use current volume state
         caseAudioRef.current = newCaseAudio; // Store the new audio instance
         newCaseAudio.play().catch(e => {
