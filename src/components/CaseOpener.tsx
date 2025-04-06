@@ -368,12 +368,61 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
       {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
-      {/* Case Opener Reel and Button Section (Moved to Top) */}
+      {/* Won Item Display Area (Moved Above Reel) */}
+      {/* Further reduced minHeight, marginBottom, paddingBottom */}
+      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+          {wonItem && !isSpinning && (
+              <div style={{ textAlign: 'center' }}>
+                  <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
+                  <p style={{
+                      color: wonItem.color || 'white',
+                      fontSize: '1.3em', // Reduced font size
+                      fontWeight: 'bold',
+                      border: `2px solid ${wonItem.color || 'white'}`,
+                      padding: '6px 10px', // Further reduced padding
+                      display: 'inline-block',
+                      marginTop: '3px', // Reduced margin
+                      backgroundColor: 'var(--secondary-bg)'
+                  }}>
+                      {wonItem.name}
+                  </p>
+                  {/* Display Image if URL exists */}
+                  {wonItem.image_url && (
+                      <img
+                          src={`http://localhost:3001${wonItem.image_url}`}
+                          alt={wonItem.name}
+                          style={{
+                              display: 'block',
+                              width: '150px', // Reduced size
+                              height: '150px', // Reduced size
+                              objectFit: 'contain',
+                              margin: '8px auto', // Reduced margin
+                              border: '1px solid var(--border-color)',
+                              backgroundColor: 'var(--input-bg)'
+                          }}
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                  )}
+                  {/* Display Rules if text exists */}
+                  {wonItem.rules && (
+                      <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
+                          <strong>Rules:</strong>
+                          <p>{wonItem.rules}</p>
+                      </div>
+                  )}
+              </div>
+          )}
+          {/* Placeholder text if nothing won yet */}
+          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Click "Open Case" to begin!</p>}
+      </div>
+
+
+      {/* Case Opener Reel and Button Section */}
       {selectedCaseId && currentCaseData && !isLoading && !error && (
-          <div style={{ marginBottom: '30px' }}> {/* Add margin below opener */}
+          <div style={{ marginBottom: '20px' }}> {/* Reduced margin */}
               <h2>{currentCaseData.name}</h2>
               <p>{currentCaseData.description ?? 'No description.'}</p>
-              <hr className="cs-hr" style={{ margin: '15px 0' }} />
+              <hr className="cs-hr" style={{ margin: '10px 0' }} /> {/* Reduced margin */}
 
               {/* The visual container for the reel */}
               <div className="case-opener-viewport">
@@ -405,7 +454,7 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
               </div>
 
               {/* Open Case Button - Made larger */}
-              <div style={{ textAlign: 'center', marginTop: '20px' }}> {/* Center the button */}
+              <div style={{ textAlign: 'center', marginTop: '15px' }}> {/* Reduced margin */}
                   <StyledButton
                       onClick={startSpin}
                       disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0}
@@ -422,53 +471,11 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
           </div>
       )}
 
-       {/* Display the won item (remains largely the same, below opener) */}
-       {wonItem && !isSpinning && (
-        <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-          <h3>You unboxed:</h3>
-          <p style={{
-            color: wonItem.color || 'white',
-            fontSize: '1.5em',
-            fontWeight: 'bold',
-            border: `2px solid ${wonItem.color || 'white'}`,
-            padding: '10px',
-            display: 'inline-block',
-            marginTop: '5px',
-            backgroundColor: 'var(--secondary-bg)'
-           }}>
-            {wonItem.name}
-          </p>
-          {/* Display Image if URL exists */}
-          {wonItem.image_url && (
-            <img
-                // Construct the full URL by prepending the backend origin
-                src={`http://localhost:3001${wonItem.image_url}`}
-                alt={wonItem.name}
-                // Standardize size and fit
-                style={{
-                    display: 'block',
-                    width: '200px', // Fixed width
-                    height: '200px', // Fixed height
-                    objectFit: 'contain', // Fit image within bounds, maintain aspect ratio
-                    margin: '10px auto',
-                    border: '1px solid var(--border-color)',
-                    backgroundColor: 'var(--input-bg)' // Add a subtle background for contrast
-                }}
-                onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
-            />
-          )}
-          {/* Display Rules if text exists */}
-          {wonItem.rules && (
-            <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
-                <strong>Rules:</strong>
-                <p>{wonItem.rules}</p>
-            </div>
-          )}
-        </div>
-      )}
+       {/* Won Item Display Removed from here */}
 
       {/* Case Selection Grid (Moved to Bottom) */}
-      <h3 style={{ marginTop: '30px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginBottom: '10px' }}>Select a Case:</h3>
+      {/* Reduced marginTop, paddingTop, marginBottom */}
+      <h3 style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginBottom: '8px' }}>Select a Case:</h3>
       <div className="case-selection-grid">
           {availableCases.length > 0 ? (
               availableCases.map(caseInfo => (

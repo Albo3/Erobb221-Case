@@ -22,9 +22,12 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '20px auto', padding: '20px' }}>
+    // Removed top margin (changed '20px auto' to '0 auto 20px auto')
+    // Reduced bottom margin for main container
+    <div style={{ maxWidth: '800px', margin: '0 auto 10px auto', padding: '20px' }}>
       {/* Updated Header with Controls */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+      {/* Reduced marginBottom and paddingBottom */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '5px' }}>
         {/* Left Side: Title/Subtitle */}
         <div style={{ textAlign: 'left' }}>
           <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
@@ -91,7 +94,8 @@ function App() {
         </main>
       )}
 
-      <footer style={{ marginTop: '30px', textAlign: 'center', fontSize: '0.9em', color: 'var(--text-3)' }}>
+      {/* Reduced marginTop */}
+      <footer style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9em', color: 'var(--text-3)' }}>
         <p>&copy; {new Date().getFullYear()} Erobb221 Cases. Built with Bun, React, and TypeScript.</p>
       </footer>
     </div>
