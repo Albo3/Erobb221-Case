@@ -421,7 +421,8 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
       {selectedCaseId && currentCaseData && !isLoading && !error && (
           <div style={{ marginBottom: '20px' }}> {/* Reduced margin */}
               <h2>{currentCaseData.name}</h2>
-              <p>{currentCaseData.description ?? 'No description.'}</p>
+              {/* Conditionally render description only if it exists */}
+              {currentCaseData.description && <p>{currentCaseData.description}</p>}
               <hr className="cs-hr" style={{ margin: '10px 0' }} /> {/* Reduced margin */}
 
               {/* The visual container for the reel */}
