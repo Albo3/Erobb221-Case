@@ -26,6 +26,7 @@ interface CaseData {
 interface CaseInfo {
     id: number;
     name: string;
+    image_path: string | null; // Add image_path
 }
 
 
@@ -43,11 +44,19 @@ const RARITY_COLORS = [
     { name: 'Exceedingly Rare', value: '#ffd700' },  // Gold (Knives/Gloves)
 ];
 
-function CaseOpener() {
+// Define props interface
+interface CaseOpenerProps {
+    volume: number;
+    onVolumeChange: (newVolume: number) => void;
+    onNewUnbox: (item: CaseItem) => void; // Add prop to report unboxed item
+}
+
+function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { // Destructure props
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
-  const [volume, setVolume] = useState(0.5); // State for volume (0 to 1)
+  // const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>([]); // Remove history state
+  // const [volume, setVolume] = useState(0.5); // Remove internal volume state
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
@@ -141,17 +150,17 @@ function CaseOpener() {
 
   }, [selectedCaseId]); // Dependency array includes selectedCaseId
 
-  // Effect to update volume of currently playing sounds when slider changes
+  // Effect to update volume of currently playing sounds when volume prop changes
   useEffect(() => {
     if (audioRef.current) { // Update item sound volume
       // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
-      audioRef.current.volume = volume;
+      audioRef.current.volume = volume; // Use volume prop
     }
     if (caseAudioRef.current) { // Update case opening sound volume
       // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
-      caseAudioRef.current.volume = volume;
+      caseAudioRef.current.volume = volume; // Use volume prop
     }
-  }, [volume]); // Run this effect when volume state changes
+  }, [volume]); // Run this effect when volume prop changes
 
   // Function to get a random item based on rarity distribution (color)
   const getRandomItem = (): CaseItem | null => {
@@ -298,6 +307,11 @@ function CaseOpener() {
       setIsSpinning(false);
       setWonItem(currentWinningItem); // Set the winning item
 
+      // Call the callback prop to report the unboxed item to App
+      if (currentWinningItem) {
+          onNewUnbox(currentWinningItem);
+      }
+
       // --- Log details for debugging ---
       console.log(`[CaseOpener] Won item details:`, currentWinningItem);
       if (currentWinningItem?.image_url) {
@@ -354,141 +368,156 @@ function CaseOpener() {
   // }
 
   return (
-    <div style={{ padding: '20px' }}>
-      {/* Top Controls: Case Selection and Volume */}
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Case Selection */}
-          <div>
-              <label htmlFor="case-select" style={{ marginRight: '10px' }}>Select Case:</label>
-              <select
-                  id="case-select"
-              value={selectedCaseId}
-              onChange={(e) => setSelectedCaseId(e.target.value)}
-              disabled={isLoading || (availableCases.length === 0 && !currentCaseData)} // Disable if loading or no cases and no fallback
-              className="cs-input" // Use existing style if suitable
-              style={{ minWidth: '200px' }}
-          >
-              {/* Add placeholder only if there are actual cases */}
-              {availableCases.length > 0 && <option value="" disabled>-- Select a Case --</option>}
-              {availableCases.map(caseInfo => (
-                  <option key={caseInfo.id} value={caseInfo.id}>
-                      {caseInfo.name} (ID: {caseInfo.id})
-                  </option>
-              ))}
-              </select>
-              {/* Adjust message based on whether fallback is loaded */}
-              {availableCases.length === 0 && !isLoading && !currentCaseData && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
-              {availableCases.length === 0 && !isLoading && currentCaseData?.id === 0 && <span style={{ marginLeft: '10px', color: 'lightblue' }}>Showing Default Case</span>}
-          </div>
+    // Remove the outer flex container div, return the main content div directly
+    // <div style={{ display: 'flex', gap: '20px', padding: '20px' }}>
+      <div style={{ flexGrow: 1 }}> {/* This div becomes the root */}
+          {/* Volume Slider Removed - Now handled in App.tsx */}
 
-          {/* Volume Slider */}
-          <div className="cs-slider" style={{ maxWidth: '200px' /* Adjusted width */ }}>
-            <div className="ruler"></div>
-            <input
-              id="volume-range"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-            />
-            <label htmlFor="volume-range">Volume: {Math.round(volume * 100)}%</label>
-          </div>
+          {/* Display Loading / Error - Moved up */}
+      {isLoading && <p>Loading...</p>}
+      {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
+
+      {/* Won Item Display Area (Moved Above Reel) */}
+      {/* Further reduced minHeight, marginBottom, paddingBottom */}
+      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+          {wonItem && !isSpinning && (
+              <div style={{ textAlign: 'center' }}>
+                  <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
+                  <p style={{
+                      color: wonItem.color || 'white',
+                      fontSize: '1.3em', // Reduced font size
+                      fontWeight: 'bold',
+                      border: `2px solid ${wonItem.color || 'white'}`,
+                      padding: '6px 10px', // Further reduced padding
+                      display: 'inline-block',
+                      marginTop: '3px', // Reduced margin
+                      backgroundColor: 'var(--secondary-bg)'
+                  }}>
+                      {wonItem.name}
+                  </p>
+                  {/* Display Image if URL exists */}
+                  {wonItem.image_url && (
+                      <img
+                          src={`http://localhost:3001${wonItem.image_url}`}
+                          alt={wonItem.name}
+                          style={{
+                              display: 'block',
+                              width: '150px', // Reduced size
+                              height: '150px', // Reduced size
+                              objectFit: 'contain',
+                              margin: '8px auto', // Reduced margin
+                              border: '1px solid var(--border-color)',
+                              backgroundColor: 'var(--input-bg)'
+                          }}
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                  )}
+                  {/* Display Rules if text exists */}
+                  {wonItem.rules && (
+                      <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
+                          <strong>Rules:</strong>
+                          <p>{wonItem.rules}</p>
+                      </div>
+                  )}
+              </div>
+          )}
+          {/* Placeholder text if nothing won yet */}
+          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Click "Open Case" to begin!</p>}
       </div>
 
-      {/* Display Loading / Error / Case Info */}
-      {isLoading && <p>Loading case data...</p>}
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
 
-      {currentCaseData && !isLoading && !error && (
-          <>
+      {/* Case Opener Reel and Button Section */}
+      {selectedCaseId && currentCaseData && !isLoading && !error && (
+          <div style={{ marginBottom: '20px' }}> {/* Reduced margin */}
               <h2>{currentCaseData.name}</h2>
-              <p>{currentCaseData.description ?? 'No description.'}</p>
-              <hr className="cs-hr" style={{ margin: '15px 0' }} />
+              {/* Conditionally render description only if it exists */}
+              {currentCaseData.description && <p>{currentCaseData.description}</p>}
+              <hr className="cs-hr" style={{ margin: '10px 0' }} /> {/* Reduced margin */}
 
               {/* The visual container for the reel */}
-      <div className="case-opener-viewport">
-        <div className="case-opener-reel" ref={reelRef}>
-          {reelItems.map((item, index) => (
-            <div
-              key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
-              // Conditionally add 'no-image' class if image_url is missing
-              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
-              style={{ color: item.color || 'white' }} // Use color from item data
-            >
-              {/* Wrap name in a span for specific styling */}
-              <span className="case-opener-item-name">{item.name}</span>
-              {/* Add image if URL exists */}
-              {item.image_url && (
-                <img
-                  src={`http://localhost:3001${item.image_url}`}
-                  alt={item.name}
-                  className="case-opener-item-image"
-                  // Basic error handling for image loading
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-                 {/* Center marker */}
-                <div className="case-opener-marker"></div>
+              <div className="case-opener-viewport">
+                  <div className="case-opener-reel" ref={reelRef}>
+                      {reelItems.map((item, index) => (
+                          <div
+                              key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
+                              // Conditionally add 'no-image' class if image_url is missing
+                              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
+                              style={{ color: item.color || 'white' }} // Use color from item data
+                          >
+                              {/* Wrap name in a span for specific styling */}
+                              <span className="case-opener-item-name">{item.name}</span>
+                              {/* Add image if URL exists */}
+                              {item.image_url && (
+                                  <img
+                                      src={`http://localhost:3001${item.image_url}`}
+                                      alt={item.name}
+                                      className="case-opener-item-image"
+                                      // Basic error handling for image loading
+                                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                                  />
+                              )}
+                          </div>
+                      ))}
+                  </div>
+                  {/* Center marker */}
+                  <div className="case-opener-marker"></div>
               </div>
 
-              {/* Removed Volume Slider from here */}
-
-              <StyledButton onClick={startSpin} disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0} style={{ marginTop: '20px' }}>
-                {isSpinning ? 'Opening...' : 'Open Case'}
-              </StyledButton>
-          </>
+              {/* Open Case Button - Made larger */}
+              <div style={{ textAlign: 'center', marginTop: '15px' }}> {/* Reduced margin */}
+                  <StyledButton
+                      onClick={startSpin}
+                      disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0}
+                      // Add styles for larger button
+                      style={{
+                          padding: '15px 30px', // Larger padding
+                          fontSize: '1.5em', // Larger font size
+                          minWidth: '200px' // Ensure minimum width
+                      }}
+                  >
+                      {isSpinning ? 'Opening...' : 'Open Case'}
+                  </StyledButton>
+              </div>
+          </div>
       )}
 
+       {/* Won Item Display Removed from here */}
 
-      {/* Display the won item (remains largely the same) */}
-      {wonItem && !isSpinning && (
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <h3>You unboxed:</h3>
-          <p style={{
-            color: wonItem.color || 'white',
-            fontSize: '1.5em',
-            fontWeight: 'bold',
-            border: `2px solid ${wonItem.color || 'white'}`,
-            padding: '10px',
-            display: 'inline-block',
-            marginTop: '5px',
-            backgroundColor: 'var(--secondary-bg)'
-           }}>
-            {wonItem.name}
-          </p>
-          {/* Display Image if URL exists */}
-          {wonItem.image_url && (
-            <img
-                // Construct the full URL by prepending the backend origin
-                src={`http://localhost:3001${wonItem.image_url}`}
-                alt={wonItem.name}
-                // Standardize size and fit
-                style={{
-                    display: 'block',
-                    width: '200px', // Fixed width
-                    height: '200px', // Fixed height
-                    objectFit: 'contain', // Fit image within bounds, maintain aspect ratio
-                    margin: '10px auto',
-                    border: '1px solid var(--border-color)',
-                    backgroundColor: 'var(--input-bg)' // Add a subtle background for contrast
-                }}
-                onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
-            />
+      {/* Case Selection Grid (Moved to Bottom) */}
+      {/* Reduced marginTop, paddingTop, marginBottom */}
+      <h3 style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginBottom: '8px' }}>Select a Case:</h3>
+      <div className="case-selection-grid">
+          {availableCases.length > 0 ? (
+              availableCases.map(caseInfo => (
+                  <div
+                      key={caseInfo.id}
+                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
+                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
+                  >
+                      {/* Display image if path exists */}
+                      {caseInfo.image_path && (
+                          <img
+                              src={`http://localhost:3001${caseInfo.image_path}`}
+                              alt={caseInfo.name}
+                              className="case-grid-item-image" // Add class for styling
+                              loading="lazy" // Lazy load images
+                              onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if error
+                          />
+                      )}
+                      {/* Overlay name */}
+                      <span className="case-grid-item-name-overlay">{caseInfo.name}</span>
+                  </div>
+              ))
+          ) : (
+              // Handle loading or no cases state for the grid area
+              !isLoading && <p style={{ color: 'orange', gridColumn: '1/-1' }}>No cases found. Create one in Admin Mode!</p>
           )}
-          {/* Display Rules if text exists */}
-          {wonItem.rules && (
-            <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
-                <strong>Rules:</strong>
-                <p>{wonItem.rules}</p>
-            </div>
-          )}
-        </div>
-      )}
+          {/* Display loading indicator within the grid area if needed */}
+          {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
+      </div>
+      {/* </div> */} {/* Removed closing tag for outer flex container */}
+
+      {/* History Panel Removed - Now handled in App.tsx */}
     </div>
   );
 }

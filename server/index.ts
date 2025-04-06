@@ -5,6 +5,7 @@ import { Database } from 'bun:sqlite';
 import { unlink } from 'node:fs/promises'; // For deleting files on rollback
 import { join, extname } from 'node:path'; // For path manipulation
 import { randomUUID } from 'node:crypto'; // For unique filenames
+import { existsSync, mkdirSync } from 'node:fs'; // For ensuring upload dirs exist
 
 // --- Constants ---
 const UPLOADS_DIR = 'uploads';
@@ -16,8 +17,14 @@ const db = new Database('database.sqlite', { create: true });
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;'); // Ensure foreign key constraints are enforced
 
+// Ensure upload directories exist on startup
+if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR);
+if (!existsSync(IMAGES_DIR)) mkdirSync(IMAGES_DIR);
+if (!existsSync(SOUNDS_DIR)) mkdirSync(SOUNDS_DIR);
+
+
 // --- Database Migration ---
-const DB_VERSION = 4; // Incremented for Item Template refactor
+const DB_VERSION = 5; // Reverted back from 6 (History moved to localStorage)
 
 const getDbVersion = (): number => {
     try {
@@ -91,9 +98,57 @@ if (currentVersion < DB_VERSION) {
     // --- End Migration Logic for v4 ---
 
     console.log(`DB migration version ${DB_VERSION} applied.`);
+    // --- Migration Logic for v5 ---
+    if (currentVersion < 5) {
+        console.log('Applying DB migration version 5: Add image_path to cases table...');
+        try {
+            db.exec('ALTER TABLE cases ADD COLUMN image_path TEXT');
+            console.log('Successfully added image_path column to cases table.');
+        } catch (alterError) {
+            // Check if the column already exists (might happen if migration was partially run before)
+            const checkColumnStmt = db.prepare("PRAGMA table_info(cases)");
+            const columns = checkColumnStmt.all() as Array<{ name: string }>;
+            if (columns.some(col => col.name === 'image_path')) {
+                console.warn('Column image_path already exists in cases table. Skipping ALTER TABLE.');
+            } else {
+                console.error('Failed to add image_path column to cases table:', alterError);
+                throw alterError; // Re-throw if it's not an "already exists" error
+            }
+        }
+    }
+    // --- End Migration Logic for v5 ---
+
+
+    console.log(`DB migration version ${DB_VERSION} applied.`);
+    // --- Migration Logic for v6 ---
+    if (currentVersion < 6) {
+        console.log('Applying DB migration version 6: Create unbox_history table...');
+        try {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS unbox_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_name TEXT NOT NULL,
+                    item_color TEXT NOT NULL,
+                    item_image_url TEXT, -- Store the relative URL
+                    unboxed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            // Add index for efficient ordering/deletion
+            db.exec('CREATE INDEX IF NOT EXISTS idx_unboxed_at ON unbox_history (unboxed_at);');
+            console.log('Successfully created unbox_history table and index.');
+        } catch (createError) {
+            console.error('Failed to create unbox_history table:', createError);
+            throw createError;
+        }
+    }
+    // --- Migration Logic for v6 (REMOVED) ---
+    // if (currentVersion < 6) { ... }
+
+
+    console.log(`DB migration version ${DB_VERSION} applied.`); // This message might be slightly inaccurate if only v5 was applied, but harmless.
     setDbVersion(DB_VERSION);
 } else {
-     console.log(`Database schema is up to date (v${DB_VERSION}).`);
+     console.log(`Database schema is up to date (v${DB_VERSION}).`); // Use the current DB_VERSION
 }
 // --- End Database Migration ---
 
@@ -381,7 +436,8 @@ app.get('/api/existing-assets', (c) => {
 app.get('/api/cases', (c) => {
     console.log('GET /api/cases requested');
     try {
-        const stmt = db.prepare('SELECT id, name FROM cases ORDER BY created_at DESC');
+        // Include image_path in the query
+        const stmt = db.prepare('SELECT id, name, image_path FROM cases ORDER BY created_at DESC');
         const cases = stmt.all();
         return c.json(cases);
     } catch (dbError) {
@@ -401,8 +457,9 @@ app.get('/api/cases/:id', (c) => {
     }
 
     try {
-        const caseStmt = db.prepare('SELECT id, name, description FROM cases WHERE id = ?');
-        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null } | null;
+        // Include image_path in the select statement
+        const caseStmt = db.prepare('SELECT id, name, description, image_path FROM cases WHERE id = ?');
+        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null; image_path: string | null } | null;
 
         if (!caseDetails) {
             return c.json({ error: 'Case not found.' }, 404);
@@ -489,34 +546,47 @@ async function saveUploadedFile(file: File, targetDir: string): Promise<string |
 }
 
 
-// Define expected request body structure for creating a case (using item template IDs)
-interface CreateCaseBodyV4 {
-    name: string;
-    description?: string;
-    items: Array<{ // Items now reference item templates via ID
-        item_template_id: number;
-        override_name?: string | null; // Optional name override
-        color: string; // Color specific to this item instance
-    }>;
+// Define expected structure for items within the form data (will be JSON string)
+interface CaseItemLinkData {
+    item_template_id: number;
+    override_name?: string | null;
+    color: string;
 }
 
-// POST /api/cases - Create a new case by linking to existing item templates (expects JSON body)
+// POST /api/cases - Create a new case (now handles multipart/form-data for image)
 app.post('/api/cases', async (c) => {
-    console.log('POST /api/cases (template linking) requested');
+    console.log('POST /api/cases requested (multipart/form-data)');
     let caseId: number | null = null;
+    const savedFilePaths: string[] = []; // Track saved image for rollback
 
     try {
-        const body = await c.req.json<CreateCaseBodyV4>();
+        const formData = await c.req.formData();
+        const name = formData.get('name') as string;
+        const description = formData.get('description') as string | null;
+        const itemsJson = formData.get('items') as string; // Items array as JSON string
+        const imageFile = formData.get('image_file') as File | null;
+        const existingImagePath = formData.get('existing_image_path') as string | null;
 
         // --- Basic Validation ---
-        if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+        if (!name || typeof name !== 'string' || name.trim() === '') {
             return c.json({ error: 'Case name is required.' }, 400);
         }
-        if (!Array.isArray(body.items) || body.items.length === 0) {
-            return c.json({ error: 'Case must contain at least one item.' }, 400);
+        if (!itemsJson || typeof itemsJson !== 'string') {
+            return c.json({ error: 'Items data (JSON string) is required.' }, 400);
         }
-        for (const item of body.items) {
-            // Validate required fields for linking
+
+        let items: CaseItemLinkData[];
+        try {
+            items = JSON.parse(itemsJson);
+            if (!Array.isArray(items) || items.length === 0) {
+                throw new Error('Items must be a non-empty array.');
+            }
+        } catch (parseError) {
+            return c.json({ error: 'Invalid items JSON format.' }, 400);
+        }
+
+        // Validate each item within the parsed array
+        for (const item of items) {
             if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
                  return c.json({ error: `Invalid or missing item_template_id for item. Must be a number.` }, 400);
             }
@@ -526,13 +596,12 @@ app.post('/api/cases', async (c) => {
             if (item.override_name && typeof item.override_name !== 'string') {
                  return c.json({ error: `Invalid override_name format for item template ID: ${item.item_template_id}. Must be a string or null.` }, 400);
             }
-            // TODO: Could add validation to check if item_template_id actually exists? Maybe not necessary if FK constraints are reliable.
         }
         // --- End Validation ---
 
         // --- Database Insertion (Transaction) ---
-        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description) VALUES (?, ?) RETURNING id');
-        // Use new case_items schema (v4)
+        // Add image_path to the insert statement
+        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
             (case_id, item_template_id, override_name, color)
@@ -542,10 +611,21 @@ app.post('/api/cases', async (c) => {
         db.exec('BEGIN TRANSACTION');
 
         try {
-            // Insert Case
+            // Determine final image path
+            let finalImagePath: string | null = null;
+            if (imageFile) {
+                finalImagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
+                if (finalImagePath) savedFilePaths.push(join('.', finalImagePath)); // Track for rollback
+                else throw new Error('Failed to save new case image file.');
+            } else if (existingImagePath) {
+                finalImagePath = existingImagePath; // Use selected existing path
+            }
+
+            // Insert Case with image path
             const caseResult = insertCaseStmt.get(
-                body.name.trim(),
-                body.description?.trim() ?? null
+                name.trim(),
+                description?.trim() ?? null,
+                finalImagePath // Add image path here
             ) as { id: number } | null;
 
             if (!caseResult || typeof caseResult.id !== 'number') {
@@ -554,32 +634,36 @@ app.post('/api/cases', async (c) => {
             caseId = caseResult.id;
 
             // Insert item links
-            for (const item of body.items) {
+            for (const item of items) { // Use parsed items array
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
-                    item.override_name?.trim() ?? null, // Use null if empty or null
+                    item.override_name?.trim() ?? null,
                     item.color.trim()
                 );
             }
 
             db.exec('COMMIT');
-            console.log(`Case '${body.name}' (ID: ${caseId}) and ${body.items.length} item links inserted successfully.`);
+            console.log(`Case '${name}' (ID: ${caseId}) with image '${finalImagePath}' and ${items.length} item links inserted successfully.`);
             return c.json({ message: 'Case created successfully', caseId: caseId }, 201);
 
         } catch (dbError) {
             console.error('Case creation transaction failed, rolling back:', dbError);
             db.exec('ROLLBACK'); // Rollback DB changes
+            // Attempt to delete saved image file on rollback
+            console.log('Attempting to delete saved case image due to rollback:', savedFilePaths);
+            for (const filePath of savedFilePaths) {
+                try { await unlink(filePath); console.log(`Deleted rolled back file: ${filePath}`); }
+                catch (unlinkError) { console.error(`Error deleting rolled back file ${filePath}:`, unlinkError); }
+            }
             const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
             return c.json({ error: `Database error during case creation: ${errorMessage}` }, 500);
         }
         // --- End Database Insertion ---
 
     } catch (error: any) {
-        console.error('Error processing POST /api/cases (template linking):', error);
-         if (error instanceof SyntaxError) {
-             return c.json({ error: 'Invalid JSON request body.' }, 400);
-        }
+        console.error('Error processing POST /api/cases:', error);
+        // Handle potential formData parsing errors specifically if needed
         return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
     }
 });
@@ -588,23 +672,54 @@ app.post('/api/cases', async (c) => {
 app.put('/api/cases/:id', async (c) => {
     const idParam = c.req.param('id');
     const caseId = parseInt(idParam, 10);
-    console.log(`PUT /api/cases/${caseId} requested`);
+    console.log(`PUT /api/cases/${caseId} requested (multipart/form-data)`);
 
     if (isNaN(caseId)) {
         return c.json({ error: 'Invalid case ID provided.' }, 400);
     }
 
-    try {
-        const body = await c.req.json<CreateCaseBodyV4>(); // Reuse the same body structure as POST
+    const savedFilePaths: string[] = []; // Track NEW image saved for potential rollback
+    let oldImagePath: string | null = null;
 
-        // --- Basic Validation (same as POST) ---
-        if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+    try {
+        // Fetch existing case to get old image path for deletion logic
+        const selectCaseStmt = db.prepare('SELECT image_path FROM cases WHERE id = ?');
+        const existingCaseData = selectCaseStmt.get(caseId) as { image_path: string | null } | null;
+
+        if (!existingCaseData) {
+            return c.json({ error: 'Case not found.' }, 404);
+        }
+        oldImagePath = existingCaseData.image_path;
+
+        // Parse formData
+        const formData = await c.req.formData();
+        const name = formData.get('name') as string;
+        const description = formData.get('description') as string | null;
+        const itemsJson = formData.get('items') as string; // Items array as JSON string
+        const imageFile = formData.get('image_file') as File | null;
+        const existingImagePath = formData.get('existing_image_path') as string | null;
+        const clearImage = formData.get('clear_image') === 'true';
+
+        // --- Basic Validation ---
+        if (!name || typeof name !== 'string' || name.trim() === '') {
             return c.json({ error: 'Case name is required.' }, 400);
         }
-        if (!Array.isArray(body.items) || body.items.length === 0) {
-            return c.json({ error: 'Case must contain at least one item.' }, 400);
+        if (!itemsJson || typeof itemsJson !== 'string') {
+            return c.json({ error: 'Items data (JSON string) is required.' }, 400);
         }
-        for (const item of body.items) {
+
+        let items: CaseItemLinkData[];
+        try {
+            items = JSON.parse(itemsJson);
+            if (!Array.isArray(items) || items.length === 0) {
+                throw new Error('Items must be a non-empty array.');
+            }
+        } catch (parseError) {
+            return c.json({ error: 'Invalid items JSON format.' }, 400);
+        }
+
+        // Validate each item within the parsed array
+        for (const item of items) {
              if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
                  return c.json({ error: `Invalid or missing item_template_id for item. Must be a number.` }, 400);
             }
@@ -618,7 +733,8 @@ app.put('/api/cases/:id', async (c) => {
         // --- End Validation ---
 
         // --- Database Update (Transaction) ---
-        const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ? WHERE id = ?');
+        // Update statement now includes image_path
+        const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ?, image_path = ? WHERE id = ?');
         const deleteOldItemsStmt = db.prepare('DELETE FROM case_items WHERE case_id = ?');
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
@@ -626,21 +742,28 @@ app.put('/api/cases/:id', async (c) => {
             VALUES (?, ?, ?, ?)
         `);
 
-        // Check if case exists first
-        const checkCaseStmt = db.prepare('SELECT id FROM cases WHERE id = ?');
-        const existingCase = checkCaseStmt.get(caseId);
-        if (!existingCase) {
-             return c.json({ error: 'Case not found.' }, 404);
-        }
-
+        // No need to check if case exists again, already done above
 
         db.exec('BEGIN TRANSACTION');
+        let finalImagePath = oldImagePath; // Start with the existing path
 
         try {
-            // 1. Update case details
+            // Determine final image path based on priority: Clear > New File > Existing Path > Keep Old
+            if (clearImage) {
+                finalImagePath = null;
+            } else if (imageFile) {
+                const newImagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
+                if (newImagePath) { savedFilePaths.push(join('.', newImagePath)); finalImagePath = newImagePath; } // Track new file
+                else { throw new Error('Failed to save new case image file.'); }
+            } else if (existingImagePath) {
+                 finalImagePath = existingImagePath; // Use selected existing path
+            } // else: finalImagePath remains oldImagePath (default)
+
+            // 1. Update case details (including image path)
             updateCaseStmt.run(
-                body.name.trim(),
-                body.description?.trim() ?? null,
+                name.trim(), // Use name from formData
+                description?.trim() ?? null, // Use description from formData
+                finalImagePath, // Use determined final image path
                 caseId
             );
 
@@ -648,7 +771,7 @@ app.put('/api/cases/:id', async (c) => {
             deleteOldItemsStmt.run(caseId);
 
             // 3. Insert new item links
-            for (const item of body.items) {
+            for (const item of items) { // Use parsed items array
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
@@ -658,12 +781,25 @@ app.put('/api/cases/:id', async (c) => {
             }
 
             db.exec('COMMIT');
-            console.log(`Case '${body.name}' (ID: ${caseId}) updated successfully with ${body.items.length} item links.`);
+
+            // Delete old image file AFTER commit succeeds, if cleared or replaced by a NEW file upload
+            if (oldImagePath && (clearImage || (imageFile && oldImagePath !== finalImagePath))) {
+                 try { await unlink(join('.', oldImagePath)); console.log(`Deleted old/replaced case image: ${oldImagePath}`); }
+                 catch(e) { console.error(`Error deleting old/replaced case image ${oldImagePath}:`, e); }
+            }
+
+            console.log(`Case '${name}' (ID: ${caseId}) updated successfully with image '${finalImagePath}' and ${items.length} item links.`);
             return c.json({ message: 'Case updated successfully', caseId: caseId }); // Return 200 OK
 
         } catch (dbError) {
             console.error(`Case update transaction failed for ID ${caseId}, rolling back:`, dbError);
             db.exec('ROLLBACK');
+            // Attempt to delete any NEW files saved during the failed transaction
+            console.log('Attempting to delete newly saved case image due to rollback:', savedFilePaths);
+            for (const filePath of savedFilePaths) {
+                try { await unlink(filePath); console.log(`Deleted rolled back file: ${filePath}`); }
+                catch (unlinkError) { console.error(`Error deleting rolled back file ${filePath}:`, unlinkError); }
+            }
             const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
             return c.json({ error: `Database error during case update: ${errorMessage}` }, 500);
         }
@@ -671,12 +807,71 @@ app.put('/api/cases/:id', async (c) => {
 
     } catch (error: any) {
         console.error(`Error processing PUT /api/cases/${caseId}:`, error);
-         if (error instanceof SyntaxError) {
-             return c.json({ error: 'Invalid JSON request body.' }, 400);
-        }
+        // Handle potential formData parsing errors specifically if needed
         return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
     }
 });
+
+// DELETE /api/cases/:id - Delete a case and its associated image
+app.delete('/api/cases/:id', async (c) => {
+    const idParam = c.req.param('id');
+    const caseId = parseInt(idParam, 10);
+    console.log(`DELETE /api/cases/${caseId} requested`);
+
+    if (isNaN(caseId)) {
+        return c.json({ error: 'Invalid case ID provided.' }, 400);
+    }
+
+    let imagePathToDelete: string | null = null;
+
+    try {
+        // 1. Find the image path before deleting the case record
+        const selectStmt = db.prepare('SELECT image_path FROM cases WHERE id = ?');
+        const caseData = selectStmt.get(caseId) as { image_path: string | null } | null;
+
+        if (!caseData) {
+            return c.json({ error: 'Case not found.' }, 404);
+        }
+        imagePathToDelete = caseData.image_path;
+
+        // 2. Delete the case record (FK constraint handles case_items)
+        const deleteStmt = db.prepare('DELETE FROM cases WHERE id = ?');
+        const result = deleteStmt.run(caseId);
+
+        if (result.changes === 0) {
+            // Should not happen if select worked, but good practice to check
+            console.warn(`Case ID ${caseId} found but delete operation affected 0 rows.`);
+            return c.json({ error: 'Case found but failed to delete.' }, 500);
+        }
+
+        console.log(`Case ID ${caseId} deleted successfully from database.`);
+
+        // 3. If an image path existed, try to delete the file
+        if (imagePathToDelete) {
+            try {
+                const fullPath = join('.', imagePathToDelete); // Assumes image_path starts with /uploads/...
+                await unlink(fullPath);
+                console.log(`Deleted associated case image: ${fullPath}`);
+            } catch (unlinkError: any) {
+                // Log error but don't fail the request, DB deletion was successful
+                if (unlinkError.code === 'ENOENT') {
+                     console.warn(`Associated image file not found, skipping deletion: ${imagePathToDelete}`);
+                } else {
+                    console.error(`Error deleting associated case image ${imagePathToDelete}:`, unlinkError);
+                }
+            }
+        }
+
+        return c.json({ message: 'Case deleted successfully.' });
+
+    } catch (dbError) {
+        console.error(`Error processing DELETE /api/cases/${caseId}:`, dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        return c.json({ error: `Database error during case deletion: ${errorMessage}` }, 500);
+    }
+});
+
+// --- History API Routes (REMOVED) ---
 
 
 // --- Server Start ---
