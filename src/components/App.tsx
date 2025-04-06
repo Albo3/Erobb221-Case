@@ -10,38 +10,67 @@ import './CaseOpener.css';
 
 function App() {
   const [isAdminMode, setIsAdminMode] = useState(false); // State for admin mode
+  const [volume, setVolume] = useState(0.5); // Add volume state here
 
   const handleAdminToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIsAdminMode(event.target.checked);
   };
 
+  // Handler for volume change (passed down)
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+  };
+
   return (
     <div style={{ maxWidth: '800px', margin: '20px auto', padding: '20px' }}>
-      <header style={{ textAlign: 'center', marginBottom: '15px' }}> {/* Reduced bottom margin */}
-        <h1 style={{ color: 'var(--accent)', borderBottom: '2px solid var(--accent)', paddingBottom: '5px' }}>
-          Erobb221 Case Manager
-        </h1>
-        <p style={{ color: 'var(--secondary-text)', marginTop: '5px' }}>Open and Create Cases</p>
-      </header>
+      {/* Updated Header with Controls */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+        {/* Left Side: Title/Subtitle */}
+        <div style={{ textAlign: 'left' }}>
+          <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
+            Erobb221 Case Manager
+          </h1>
+          <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}>Open and Create Cases</p>
+        </div>
 
-      {/* Admin Mode Toggle Checkbox */}
-      <div style={{ textAlign: 'right', marginBottom: '15px' }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={isAdminMode}
-            onChange={handleAdminToggle}
-          />
-          Admin Mode
-        </label>
-      </div>
+        {/* Right Side: Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {/* Volume Slider Placeholder (Actual JSX will be moved from CaseOpener) */}
+          <div className="cs-slider" style={{ maxWidth: '150px' }}> {/* Adjusted width */}
+            <div className="ruler"></div>
+            <input
+              id="volume-range-header" // Unique ID
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))} // Use handler
+            />
+            <label htmlFor="volume-range-header" style={{ fontSize: '0.8em' }}>Volume: {Math.round(volume * 100)}%</label>
+          </div>
+          {/* Admin Mode Toggle Checkbox */}
+          <div style={{ fontSize: '0.9em' }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={isAdminMode}
+                onChange={handleAdminToggle}
+                style={{ marginRight: '4px', verticalAlign: 'middle' }}
+              />
+              Admin Mode
+            </label>
+          </div>
+        </div>
+      </header>
 
       {/* Conditional Rendering based on isAdminMode */}
       {isAdminMode ? (
         <Tabs>
           <Tab label="Open Case">
             <main>
-              <CaseOpener />
+              {/* Pass volume state and handler down */}
+              <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} />
             </main>
           </Tab>
           <Tab label="Create Case">
@@ -57,7 +86,8 @@ function App() {
         </Tabs>
       ) : (
         <main>
-          <CaseOpener />
+           {/* Pass volume state and handler down */}
+           <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} />
         </main>
       )}
 

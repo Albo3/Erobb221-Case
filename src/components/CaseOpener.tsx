@@ -44,11 +44,17 @@ const RARITY_COLORS = [
     { name: 'Exceedingly Rare', value: '#ffd700' },  // Gold (Knives/Gloves)
 ];
 
-function CaseOpener() {
+// Define props interface
+interface CaseOpenerProps {
+    volume: number;
+    onVolumeChange: (newVolume: number) => void;
+}
+
+function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructure props
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
-  const [volume, setVolume] = useState(0.5); // State for volume (0 to 1)
+  // const [volume, setVolume] = useState(0.5); // Remove internal volume state
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
@@ -142,17 +148,17 @@ function CaseOpener() {
 
   }, [selectedCaseId]); // Dependency array includes selectedCaseId
 
-  // Effect to update volume of currently playing sounds when slider changes
+  // Effect to update volume of currently playing sounds when volume prop changes
   useEffect(() => {
     if (audioRef.current) { // Update item sound volume
       // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
-      audioRef.current.volume = volume;
+      audioRef.current.volume = volume; // Use volume prop
     }
     if (caseAudioRef.current) { // Update case opening sound volume
       // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
-      caseAudioRef.current.volume = volume;
+      caseAudioRef.current.volume = volume; // Use volume prop
     }
-  }, [volume]); // Run this effect when volume state changes
+  }, [volume]); // Run this effect when volume prop changes
 
   // Function to get a random item based on rarity distribution (color)
   const getRandomItem = (): CaseItem | null => {
@@ -356,107 +362,69 @@ function CaseOpener() {
 
   return (
     <div style={{ padding: '20px' }}>
-      {/* Top Controls: Volume Slider */}
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Volume Slider */}
-          <div className="cs-slider" style={{ maxWidth: '200px' /* Adjusted width */ }}>
-            <div className="ruler"></div>
-            <input
-              id="volume-range"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-            />
-            <label htmlFor="volume-range">Volume: {Math.round(volume * 100)}%</label>
-          </div>
-      </div>
+      {/* Volume Slider Removed - Now handled in App.tsx */}
 
-      {/* Case Selection Grid */}
-      <div className="case-selection-grid" style={{ marginBottom: '20px' }}>
-          {availableCases.length > 0 ? (
-              availableCases.map(caseInfo => (
-                  <div
-                      key={caseInfo.id}
-                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
-                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
-                  >
-                      {/* Display image if path exists */}
-                      {caseInfo.image_path && (
-                          <img
-                              src={`http://localhost:3001${caseInfo.image_path}`}
-                              alt={caseInfo.name}
-                              className="case-grid-item-image" // Add class for styling
-                              loading="lazy" // Lazy load images
-                              onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if error
-                          />
-                      )}
-                      {/* Overlay name */}
-                      <span className="case-grid-item-name-overlay">{caseInfo.name}</span>
-                  </div>
-              ))
-          ) : (
-              // Handle loading or no cases state for the grid area
-              !isLoading && !currentCaseData && <p style={{ color: 'orange', gridColumn: '1/-1' }}>No cases found. Create one in Admin Mode!</p>
-          )}
-          {/* Display loading indicator within the grid area if needed */}
-          {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
-      </div>
-
-
-      {/* Display Loading / Error / Case Info - Keep error display */}
+      {/* Display Loading / Error - Moved up */}
+      {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
-      {/* Only show the opener section if a case is selected */}
+      {/* Case Opener Reel and Button Section (Moved to Top) */}
       {selectedCaseId && currentCaseData && !isLoading && !error && (
-          <>
+          <div style={{ marginBottom: '30px' }}> {/* Add margin below opener */}
               <h2>{currentCaseData.name}</h2>
               <p>{currentCaseData.description ?? 'No description.'}</p>
               <hr className="cs-hr" style={{ margin: '15px 0' }} />
 
               {/* The visual container for the reel */}
-      <div className="case-opener-viewport">
-        <div className="case-opener-reel" ref={reelRef}>
-          {reelItems.map((item, index) => (
-            <div
-              key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
-              // Conditionally add 'no-image' class if image_url is missing
-              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
-              style={{ color: item.color || 'white' }} // Use color from item data
-            >
-              {/* Wrap name in a span for specific styling */}
-              <span className="case-opener-item-name">{item.name}</span>
-              {/* Add image if URL exists */}
-              {item.image_url && (
-                <img
-                  src={`http://localhost:3001${item.image_url}`}
-                  alt={item.name}
-                  className="case-opener-item-image"
-                  // Basic error handling for image loading
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-                 {/* Center marker */}
-                <div className="case-opener-marker"></div>
+              <div className="case-opener-viewport">
+                  <div className="case-opener-reel" ref={reelRef}>
+                      {reelItems.map((item, index) => (
+                          <div
+                              key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
+                              // Conditionally add 'no-image' class if image_url is missing
+                              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
+                              style={{ color: item.color || 'white' }} // Use color from item data
+                          >
+                              {/* Wrap name in a span for specific styling */}
+                              <span className="case-opener-item-name">{item.name}</span>
+                              {/* Add image if URL exists */}
+                              {item.image_url && (
+                                  <img
+                                      src={`http://localhost:3001${item.image_url}`}
+                                      alt={item.name}
+                                      className="case-opener-item-image"
+                                      // Basic error handling for image loading
+                                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                                  />
+                              )}
+                          </div>
+                      ))}
+                  </div>
+                  {/* Center marker */}
+                  <div className="case-opener-marker"></div>
               </div>
 
-              {/* Removed Volume Slider from here */}
-
-              <StyledButton onClick={startSpin} disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0} style={{ marginTop: '20px' }}>
-                {isSpinning ? 'Opening...' : 'Open Case'}
-              </StyledButton>
-          </>
+              {/* Open Case Button - Made larger */}
+              <div style={{ textAlign: 'center', marginTop: '20px' }}> {/* Center the button */}
+                  <StyledButton
+                      onClick={startSpin}
+                      disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0}
+                      // Add styles for larger button
+                      style={{
+                          padding: '15px 30px', // Larger padding
+                          fontSize: '1.5em', // Larger font size
+                          minWidth: '200px' // Ensure minimum width
+                      }}
+                  >
+                      {isSpinning ? 'Opening...' : 'Open Case'}
+                  </StyledButton>
+              </div>
+          </div>
       )}
 
-
-      {/* Display the won item (remains largely the same) */}
-      {wonItem && !isSpinning && (
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+       {/* Display the won item (remains largely the same, below opener) */}
+       {wonItem && !isSpinning && (
+        <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
           <h3>You unboxed:</h3>
           <p style={{
             color: wonItem.color || 'white',
@@ -498,6 +466,39 @@ function CaseOpener() {
           )}
         </div>
       )}
+
+      {/* Case Selection Grid (Moved to Bottom) */}
+      <h3 style={{ marginTop: '30px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginBottom: '10px' }}>Select a Case:</h3>
+      <div className="case-selection-grid">
+          {availableCases.length > 0 ? (
+              availableCases.map(caseInfo => (
+                  <div
+                      key={caseInfo.id}
+                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
+                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
+                  >
+                      {/* Display image if path exists */}
+                      {caseInfo.image_path && (
+                          <img
+                              src={`http://localhost:3001${caseInfo.image_path}`}
+                              alt={caseInfo.name}
+                              className="case-grid-item-image" // Add class for styling
+                              loading="lazy" // Lazy load images
+                              onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if error
+                          />
+                      )}
+                      {/* Overlay name */}
+                      <span className="case-grid-item-name-overlay">{caseInfo.name}</span>
+                  </div>
+              ))
+          ) : (
+              // Handle loading or no cases state for the grid area
+              !isLoading && <p style={{ color: 'orange', gridColumn: '1/-1' }}>No cases found. Create one in Admin Mode!</p>
+          )}
+          {/* Display loading indicator within the grid area if needed */}
+          {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
+      </div>
+
     </div>
   );
 }
