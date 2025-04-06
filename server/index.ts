@@ -24,7 +24,7 @@ if (!existsSync(SOUNDS_DIR)) mkdirSync(SOUNDS_DIR);
 
 
 // --- Database Migration ---
-const DB_VERSION = 5; // Incremented for Case Images
+const DB_VERSION = 5; // Reverted back from 6 (History moved to localStorage)
 
 const getDbVersion = (): number => {
     try {
@@ -120,9 +120,35 @@ if (currentVersion < DB_VERSION) {
 
 
     console.log(`DB migration version ${DB_VERSION} applied.`);
+    // --- Migration Logic for v6 ---
+    if (currentVersion < 6) {
+        console.log('Applying DB migration version 6: Create unbox_history table...');
+        try {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS unbox_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_name TEXT NOT NULL,
+                    item_color TEXT NOT NULL,
+                    item_image_url TEXT, -- Store the relative URL
+                    unboxed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            // Add index for efficient ordering/deletion
+            db.exec('CREATE INDEX IF NOT EXISTS idx_unboxed_at ON unbox_history (unboxed_at);');
+            console.log('Successfully created unbox_history table and index.');
+        } catch (createError) {
+            console.error('Failed to create unbox_history table:', createError);
+            throw createError;
+        }
+    }
+    // --- Migration Logic for v6 (REMOVED) ---
+    // if (currentVersion < 6) { ... }
+
+
+    console.log(`DB migration version ${DB_VERSION} applied.`); // This message might be slightly inaccurate if only v5 was applied, but harmless.
     setDbVersion(DB_VERSION);
 } else {
-     console.log(`Database schema is up to date (v${DB_VERSION}).`);
+     console.log(`Database schema is up to date (v${DB_VERSION}).`); // Use the current DB_VERSION
 }
 // --- End Database Migration ---
 
@@ -844,6 +870,8 @@ app.delete('/api/cases/:id', async (c) => {
         return c.json({ error: `Database error during case deletion: ${errorMessage}` }, 500);
     }
 });
+
+// --- History API Routes (REMOVED) ---
 
 
 // --- Server Start ---

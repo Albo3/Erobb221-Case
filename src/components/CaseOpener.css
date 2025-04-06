@@ -149,3 +149,25 @@
   -moz-user-select: none;
   -ms-user-select: none;
 }
+
+/* History Panel Styles */
+.history-panel h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: var(--accent-light);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 5px;
+}
+
+.history-panel ul {
+  /* Styles for the list itself if needed */
+}
+
+.history-panel li {
+  /* Styles for each history item */
+  transition: background-color 0.2s ease;
+}
+
+.history-panel li:hover {
+   background-color: var(--bg-hover); /* Subtle hover effect */
+}

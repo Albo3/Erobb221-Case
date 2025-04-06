@@ -48,12 +48,14 @@ const RARITY_COLORS = [
 interface CaseOpenerProps {
     volume: number;
     onVolumeChange: (newVolume: number) => void;
+    onNewUnbox: (item: CaseItem) => void; // Add prop to report unboxed item
 }
 
-function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructure props
+function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { // Destructure props
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
+  // const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>([]); // Remove history state
   // const [volume, setVolume] = useState(0.5); // Remove internal volume state
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
@@ -305,6 +307,11 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
       setIsSpinning(false);
       setWonItem(currentWinningItem); // Set the winning item
 
+      // Call the callback prop to report the unboxed item to App
+      if (currentWinningItem) {
+          onNewUnbox(currentWinningItem);
+      }
+
       // --- Log details for debugging ---
       console.log(`[CaseOpener] Won item details:`, currentWinningItem);
       if (currentWinningItem?.image_url) {
@@ -361,10 +368,12 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
   // }
 
   return (
-    <div style={{ padding: '20px' }}>
-      {/* Volume Slider Removed - Now handled in App.tsx */}
+    // Remove the outer flex container div, return the main content div directly
+    // <div style={{ display: 'flex', gap: '20px', padding: '20px' }}>
+      <div style={{ flexGrow: 1 }}> {/* This div becomes the root */}
+          {/* Volume Slider Removed - Now handled in App.tsx */}
 
-      {/* Display Loading / Error - Moved up */}
+          {/* Display Loading / Error - Moved up */}
       {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
@@ -506,7 +515,9 @@ function CaseOpener({ volume, onVolumeChange }: CaseOpenerProps) { // Destructur
           {/* Display loading indicator within the grid area if needed */}
           {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
       </div>
+      {/* </div> */} {/* Removed closing tag for outer flex container */}
 
+      {/* History Panel Removed - Now handled in App.tsx */}
     </div>
   );
 }
