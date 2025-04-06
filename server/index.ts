@@ -8,30 +8,102 @@ const db = new Database('database.sqlite', { create: true });
 // Enable WAL mode for better concurrency
 db.exec('PRAGMA journal_mode = WAL;');
 
-// Create tables if they don't exist
+// --- Database Migration ---
+const DB_VERSION = 2; // Increment this when schema changes
+
+// Function to get current DB version
+const getDbVersion = (): number => {
+    try {
+        db.exec('CREATE TABLE IF NOT EXISTS db_meta (key TEXT PRIMARY KEY, value TEXT)');
+        const stmt = db.prepare('SELECT value FROM db_meta WHERE key = ?');
+        const result = stmt.get('version') as { value: string } | null;
+        return result ? parseInt(result.value, 10) : 0;
+    } catch {
+        return 0; // Assume version 0 if table/row doesn't exist or error occurs
+    }
+};
+
+// Function to set DB version
+const setDbVersion = (version: number) => {
+    const stmt = db.prepare('INSERT OR REPLACE INTO db_meta (key, value) VALUES (?, ?)');
+    stmt.run('version', version.toString());
+};
+
+// Apply migrations based on version
+const currentVersion = getDbVersion();
+console.log(`Current DB version: ${currentVersion}, Required version: ${DB_VERSION}`);
+
+if (currentVersion < 1) {
+    console.log('Applying DB migration version 1 (Initial Schema)...');
+    // Forcefully drop tables first to ensure clean slate
+    console.log('Dropping existing tables (if they exist)...');
+    db.exec('DROP TABLE IF EXISTS case_items;');
+    db.exec('DROP TABLE IF EXISTS cases;');
+    db.exec('DROP TABLE IF EXISTS db_meta;'); // Drop meta table too, it will be recreated
+
+    // Recreate meta table
+    db.exec('CREATE TABLE IF NOT EXISTS db_meta (key TEXT PRIMARY KEY, value TEXT)');
+
+    // Create tables with the LATEST desired schema
+    console.log('Creating tables with latest schema...');
+    db.exec(`
+      CREATE TABLE cases ( -- Use CREATE TABLE instead of CREATE TABLE IF NOT EXISTS
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    db.exec(`
+      CREATE TABLE case_items ( -- Use CREATE TABLE instead of CREATE TABLE IF NOT EXISTS
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        case_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        image_url TEXT,
+        rules TEXT,
+        sound_url TEXT,
+        FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE
+      );
+    `);
+    console.log('DB migration version 1 applied (Created tables with latest schema).');
+    setDbVersion(DB_VERSION); // Set to latest version after initial creation
+}
+// Removed the ALTER TABLE logic (version < 2 block) as we now force recreation in the version < 1 block
+// else if (currentVersion < 2) { ... }
+else {
+     console.log('Database schema is up to date (v2 or higher).');
+}
+// --- End Database Migration ---
+
+
+// Removed redundant CREATE TABLE IF NOT EXISTS statements
+/*
 db.exec(`
   CREATE TABLE IF NOT EXISTS cases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
-    sound_url TEXT, -- Added sound URL for the case
+    -- sound_url TEXT, -- Removed sound URL from case
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-
+*/
+/*
 db.exec(`
   CREATE TABLE IF NOT EXISTS case_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     case_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     color TEXT NOT NULL,
-    image_url TEXT, -- Added image URL for the item
-    rules TEXT, -- Added rules text for the item
+    image_url TEXT,
+    rules TEXT,
+    sound_url TEXT, -- Added sound URL for the item
     FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE
   );
 `);
-
-console.log('Database initialized and tables ensured.');
+*/
+// console.log('Database initialized and tables ensured.'); // Message moved into migration logic
 
 // --- Hono App Setup ---
 const app = new Hono();
@@ -72,19 +144,18 @@ app.get('/api/cases/:id', (c) => {
     }
 
     try {
-        // Fetch case details including sound_url
-        const caseStmt = db.prepare('SELECT id, name, description, sound_url FROM cases WHERE id = ?');
-        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null; sound_url: string | null } | null;
+        // Fetch case details (no sound_url needed here anymore)
+        const caseStmt = db.prepare('SELECT id, name, description FROM cases WHERE id = ?');
+        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null } | null;
 
         if (!caseDetails) {
             return c.json({ error: 'Case not found.' }, 404);
         }
 
-        // Fetch associated items including image_url and rules
-        // Corrected SELECT statement: removed 'weight'
-        const itemsStmt = db.prepare('SELECT name, color, image_url, rules FROM case_items WHERE case_id = ?');
-        // Corrected type: removed 'weight'
-        const items = itemsStmt.all(id) as Array<{ name: string; color: string; image_url: string | null; rules: string | null }>;
+        // Fetch associated items including image_url, rules, and sound_url
+        const itemsStmt = db.prepare('SELECT name, color, image_url, rules, sound_url FROM case_items WHERE case_id = ?');
+        // Added sound_url to type
+        const items = itemsStmt.all(id) as Array<{ name: string; color: string; image_url: string | null; rules: string | null; sound_url: string | null }>;
 
         // Combine and return
         const result = {
@@ -101,16 +172,17 @@ app.get('/api/cases/:id', (c) => {
 
 // --- API Route Implementations ---
 
-// Define expected request body structure for creating a case (with new fields)
+// Define expected request body structure for creating a case (sound_url moved to item)
 interface CreateCaseRequestBody {
     name: string;
     description?: string;
-    sound_url?: string; // Added sound_url
+    // sound_url?: string; // Removed from case level
     items: Array<{
         name: string;
         color: string;
-        image_url?: string; // Added image_url
-        rules?: string; // Added rules
+        image_url?: string;
+        rules?: string;
+        sound_url?: string; // Added sound_url to item
     }>;
 }
 
@@ -127,44 +199,42 @@ app.post('/api/cases', async (c) => {
         if (!Array.isArray(body.items) || body.items.length === 0) {
             return c.json({ error: 'Case must contain at least one item.' }, 400);
         }
-        // Add validation for optional URL/text fields if needed (e.g., check if URL format is valid)
-        // For simplicity, we'll just check basic types if they exist
-        if (body.sound_url && typeof body.sound_url !== 'string') {
-             return c.json({ error: 'Invalid sound_url format.' }, 400);
-        }
+        // Removed case-level sound_url validation
         for (const item of body.items) {
             // Updated validation: check name and color (required)
             if (!item.name || typeof item.name !== 'string' || item.name.trim() === '' ||
                 !item.color || typeof item.color !== 'string' || item.color.trim() === '') {
-                // Corrected error message
                 return c.json({ error: `Each item must have a valid name and color. Failed item: ${JSON.stringify(item)}` }, 400);
             }
-            // Optional field validation
+            // Optional field validation (including item sound_url)
             if (item.image_url && typeof item.image_url !== 'string') {
                  return c.json({ error: `Invalid image_url format for item '${item.name}'.` }, 400);
             }
              if (item.rules && typeof item.rules !== 'string') {
                  return c.json({ error: `Invalid rules format for item '${item.name}'.` }, 400);
             }
+             if (item.sound_url && typeof item.sound_url !== 'string') {
+                 return c.json({ error: `Invalid sound_url format for item '${item.name}'.` }, 400);
+            }
         }
         // --- End Validation ---
 
 
         // --- Database Insertion (Transaction) ---
-        // Updated statement: added sound_url
-        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, sound_url) VALUES (?, ?, ?) RETURNING id');
-        // Updated statement: added image_url, rules
-        const insertItemStmt = db.prepare('INSERT INTO case_items (case_id, name, color, image_url, rules) VALUES (?, ?, ?, ?, ?)');
+        // Updated statement: removed sound_url from cases insert
+        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description) VALUES (?, ?) RETURNING id');
+        // Updated statement: added sound_url to items insert
+        const insertItemStmt = db.prepare('INSERT INTO case_items (case_id, name, color, image_url, rules, sound_url) VALUES (?, ?, ?, ?, ?, ?)');
 
         let caseId: number | null = null;
         try {
             db.exec('BEGIN TRANSACTION');
 
             // Explicitly type the expected result from the RETURNING clause
+            // Removed sound_url from get() call
             const caseResult = insertCaseStmt.get(
                 body.name.trim(),
-                body.description?.trim() ?? null,
-                body.sound_url?.trim() ?? null // Add sound_url
+                body.description?.trim() ?? null
             ) as { id: number } | null; // Type assertion
 
             if (!caseResult || typeof caseResult.id !== 'number') {
@@ -174,13 +244,14 @@ app.post('/api/cases', async (c) => {
             caseId = caseResult.id; // Now TS knows caseResult.id is a number
 
             for (const item of body.items) {
-                // Updated run call: added image_url, rules
+                // Updated run call: added sound_url
                 insertItemStmt.run(
                     caseId,
                     item.name.trim(),
                     item.color.trim(),
                     item.image_url?.trim() ?? null,
-                    item.rules?.trim() ?? null
+                    item.rules?.trim() ?? null,
+                    item.sound_url?.trim() ?? null // Add item sound_url
                 );
             }
 
