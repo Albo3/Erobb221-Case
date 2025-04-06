@@ -1,143 +1,459 @@
 import React, { useState, useEffect, useRef } from 'react';
+// Removed matter import
 import StyledButton from './StyledButton';
-import './CaseOpener.css'; // We'll create this CSS file next
+import './CaseOpener.css';
+// Removed direct JSON import
+// Removed import caseSoundUrl from '/public/sounds/case.mp3';
 
-// Define item rarities and potential items
-// (Simplified for now - using language names)
-const items = [
-  { name: 'JavaScript', rarity: 'common' },
-  { name: 'HTML', rarity: 'common' },
-  { name: 'CSS', rarity: 'common' },
-  { name: 'Plain Text', rarity: 'common' },
-  { name: 'TypeScript', rarity: 'uncommon' },
-  { name: 'Python', rarity: 'uncommon' },
-  { name: 'JSON', rarity: 'uncommon' },
-  { name: 'Markdown', rarity: 'rare' },
-  { name: 'Shell/Bash', rarity: 'rare' },
+// Define interfaces for case data structure (CaseItem remains the same)
+interface CaseItem {
+  name: string;
+  color: string;
+  image_url?: string | null;
+  rules?: string | null;
+  sound_url?: string | null; // Added item sound_url
+}
+
+interface CaseData {
+  name: string;
+  description: string | null;
+  // sound_url?: string | null; // Removed case sound_url
+  items: CaseItem[];
+  id?: number;
+}
+
+// Interface for the list of cases fetched from /api/cases
+interface CaseInfo {
+    id: number;
+    name: string;
+}
+
+
+const REEL_ITEM_WIDTH = 120; // Width of each item in pixels (now matches height, no margin)
+const SPIN_DURATION = 6000; // Duration of spin animation in ms (Increased to 6s)
+
+// Define standard CS:GO rarity colors and names (copied from CreateCaseForm)
+const RARITY_COLORS = [
+    { name: 'Consumer Grade', value: '#b0c3d9' },    // White/Grayish
+    { name: 'Industrial Grade', value: '#5e98d9' },  // Light Blue
+    { name: 'Mil-Spec', value: '#4b69ff' },          // Blue
+    { name: 'Restricted', value: '#8847ff' },        // Purple
+    { name: 'Classified', value: '#d32ce6' },        // Pink
+    { name: 'Covert', value: '#eb4b4b' },            // Red
+    { name: 'Exceedingly Rare', value: '#ffd700' },  // Gold (Knives/Gloves)
 ];
-
-// Assign colors based on rarity (approximate CS colors)
-const rarityColors: { [key: string]: string } = {
-  common: '#b0c3d9', // Consumer Grade (Light Blue)
-  uncommon: '#5e98d9', // Industrial Grade (Blue)
-  rare: '#4b69ff', // Mil-Spec (Darker Blue - using purple for distinction)
-  // Add more rarities like purple, pink, red, gold if needed
-};
-
-const REEL_ITEM_WIDTH = 100; // Width of each item in pixels + margin
-const SPIN_DURATION = 3000; // Duration of spin animation in ms
 
 function CaseOpener() {
   const [isSpinning, setIsSpinning] = useState(false);
-  const [reelItems, setReelItems] = useState<typeof items>([]);
-  const [wonItem, setWonItem] = useState<typeof items[0] | null>(null);
+  const [reelItems, setReelItems] = useState<CaseItem[]>([]);
+  const [wonItem, setWonItem] = useState<CaseItem | null>(null);
+  const [volume, setVolume] = useState(0.5); // State for volume (0 to 1)
+  const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
+  const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current ITEM sound instance
+  const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance
 
-  // Function to get a weighted random item based on rarity
-  const getRandomItem = (): typeof items[0] => {
-    // Simple weighted random logic (adjust weights for real probabilities)
-    const weightedList: typeof items[0][] = [];
-    items.forEach(item => {
-      let weight = 1;
-      if (item.rarity === 'uncommon') weight = 3;
-      if (item.rarity === 'rare') weight = 6; // Make rare less likely
-      for (let i = 0; i < weight; i++) {
-        weightedList.push(item);
+  // Effect to fetch the list of available cases on mount
+  useEffect(() => {
+      setIsLoading(true);
+      fetch('http://localhost:3001/api/cases') // Use full URL
+          .then(response => {
+              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+              return response.json();
+          })
+          .then((data: CaseInfo[]) => {
+              setAvailableCases(data);
+              if (data.length > 0 && data[0]) {
+                  // Select the first case if available
+                  setSelectedCaseId(data[0].id.toString());
+              } else {
+                  // No cases in DB, load a default fallback case
+                  console.log("No cases found in DB, loading default fallback case.");
+                  setCurrentCaseData({
+                      id: 0,
+                      name: "Default Starter Case",
+                      description: "A basic case loaded because the database is empty.",
+                      // No case sound_url
+                      items: [
+                          // Add nulls for optional fields in default items
+                          { name: "Default Gray", color: "#b0c3d9", image_url: null, rules: null, sound_url: null },
+                          { name: "Default Blue", color: "#5e98d9", image_url: null, rules: null, sound_url: null },
+                          { name: "Default Purple", color: "#4b69ff", image_url: null, rules: null, sound_url: null },
+                          { name: "Default Gold", color: "#ffd700", image_url: null, rules: null, sound_url: null },
+                      ]
+                  });
+                  // Initialize reel for fallback case
+                  setReelItems([
+                      { name: "Default Gray", color: "#b0c3d9", image_url: null, rules: null, sound_url: null },
+                      { name: "Default Blue", color: "#5e98d9", image_url: null, rules: null, sound_url: null },
+                      { name: "Default Purple", color: "#4b69ff", image_url: null, rules: null, sound_url: null },
+                      { name: "Default Gold", color: "#ffd700", image_url: null, rules: null, sound_url: null },
+                  ].slice(0, 10));
+                  setSelectedCaseId('');
+              }
+              setError(null);
+          })
+          .catch(err => {
+              console.error("Error fetching available cases:", err);
+              setError(`Failed to load available cases: ${err.message}`);
+              setAvailableCases([]);
+          })
+          .finally(() => setIsLoading(false));
+  }, []);
+
+  // Effect to fetch details when selectedCaseId changes
+  useEffect(() => {
+      if (!selectedCaseId) {
+          setCurrentCaseData(null); // Clear data if no case is selected
+          return;
       }
-    });
-    const randomIndex = Math.floor(Math.random() * weightedList.length);
-    // Assert non-null as weightedList is guaranteed to be populated from static items
-    return weightedList[randomIndex]!;
+
+      setIsLoading(true);
+      setError(null); // Clear previous errors
+      fetch(`http://localhost:3001/api/cases/${selectedCaseId}`) // Use full URL
+          .then(response => {
+              if (!response.ok) {
+                  return response.json().then(errData => {
+                      throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+                  }).catch(() => {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  });
+              }
+              return response.json();
+          })
+          .then((data: CaseData) => {
+              if (!data || !Array.isArray(data.items)) {
+                   throw new Error("Invalid case data received from server.");
+              }
+              setCurrentCaseData(data);
+              setReelItems(data.items.slice(0, 10)); // Initialize reel
+          })
+          .catch(err => {
+              console.error(`Error fetching case ${selectedCaseId}:`, err);
+              setError(`Failed to load case details: ${err.message}`);
+              setCurrentCaseData(null); // Clear data on error
+          })
+          .finally(() => setIsLoading(false));
+
+  }, [selectedCaseId]); // Dependency array includes selectedCaseId
+
+  // Effect to update volume of currently playing sounds when slider changes
+  useEffect(() => {
+    if (audioRef.current) { // Update item sound volume
+      // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
+      audioRef.current.volume = volume;
+    }
+    if (caseAudioRef.current) { // Update case opening sound volume
+      // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
+      caseAudioRef.current.volume = volume;
+    }
+  }, [volume]); // Run this effect when volume state changes
+
+  // Function to get a random item based on rarity distribution (color)
+  const getRandomItem = (): CaseItem | null => {
+      if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
+
+      // --- Determine Odds Based on Rarity Distribution (using color value) ---
+      // This is a simplified example. Real CS:GO odds are complex and not public.
+      // We'll assign higher chances to lower rarities based on their color value matching RARITY_COLORS.
+      const rarityWeights: { [colorValue: string]: number } = {
+          [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, // Consumer Grade
+          [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,  // Industrial Grade
+          [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  // Mil-Spec
+          [RARITY_COLORS[3]?.value ?? '#8847ff']: 10,  // Restricted
+          [RARITY_COLORS[4]?.value ?? '#d32ce6']: 5,   // Classified
+          [RARITY_COLORS[5]?.value ?? '#eb4b4b']: 2,   // Covert
+          [RARITY_COLORS[6]?.value ?? '#ffd700']: 1,   // Exceedingly Rare
+      };
+
+      const weightedList: CaseItem[] = [];
+      currentCaseData.items.forEach(item => {
+          const weight = rarityWeights[item.color] || 1; // Default weight if color not found
+          for (let i = 0; i < weight; i++) {
+              weightedList.push(item);
+          }
+      });
+
+      if (weightedList.length === 0) return currentCaseData.items[0] ?? null; // Fallback
+
+      const randomIndex = Math.floor(Math.random() * weightedList.length);
+      return weightedList[randomIndex] ?? null; // Return selected item or null
+      // --- End Odds Logic ---
+
+
+      // --- Original Weight-Based Logic (Removed) ---
+      // const totalWeight = currentCaseData.items.reduce((sum, item) => sum + item.weight, 0);
+      // if (totalWeight <= 0) {
+      //      const firstItem = currentCaseData.items[0];
+      //      return firstItem ?? null;
+      // }
+      // let randomNum = Math.random() * totalWeight;
+      // for (const item of currentCaseData.items) {
+      //     if (randomNum < item.weight) {
+      //         return item;
+      //     }
+      //     randomNum -= item.weight;
+      // }
+
+      // Fallback should ideally not be reached
   };
 
   const startSpin = () => {
-    if (isSpinning) return;
+    // Check if spinning or if case data isn't loaded
+    if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
+
+    // Stop any currently playing sounds (both item and case opening) before starting a new spin
+    if (audioRef.current) {
+        console.log("[CaseOpener] Stopping previous item sound.");
+        audioRef.current.pause();
+        audioRef.current.src = ''; // Detach source
+        audioRef.current = null;
+    }
+    if (caseAudioRef.current) {
+        console.log("[CaseOpener] Stopping previous case opening sound.");
+        caseAudioRef.current.pause();
+        caseAudioRef.current.src = ''; // Detach source
+        caseAudioRef.current = null;
+    }
+
+    // Play the case opening sound
+    try {
+        const caseSoundUrl = 'http://localhost:3001/uploads/sounds/case.mp3'; // Correct URL via /uploads/ route
+        console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
+        const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
+        newCaseAudio.volume = volume; // Use current volume state
+        caseAudioRef.current = newCaseAudio; // Store the new audio instance
+        newCaseAudio.play().catch(e => {
+            console.error("Error playing case opening sound:", e);
+            caseAudioRef.current = null; // Clear ref on playback error
+        });
+        // Optional: Clear ref when audio finishes playing naturally
+        newCaseAudio.onended = () => {
+            console.log("[CaseOpener] Case opening sound finished playing.");
+            // Don't clear ref here, might be needed by volume slider or stopped later
+        };
+    } catch (e) {
+        console.error("Error creating case opening audio object:", e);
+        caseAudioRef.current = null; // Clear ref if object creation fails
+    }
+
+
+    const currentWinningItem = getRandomItem();
+    if (!currentWinningItem) {
+        setError("Could not determine a winning item.");
+        return;
+    }
 
     setIsSpinning(true);
     setWonItem(null); // Clear previous win
 
     // 1. Generate a long list of items for the visual reel
     const totalReelItems = 50; // Number of items shown in the reel animation
-    const generatedReel: typeof items[0][] = [];
-    for (let i = 0; i < totalReelItems - 1; i++) {
-      generatedReel.push(getRandomItem()); // Fill most with random items
+    const generatedReel: CaseItem[] = [];
+    for (let i = 0; i < totalReelItems; i++) {
+        const randomItem = getRandomItem();
+        if (randomItem) {
+            generatedReel.push(randomItem);
+        } else {
+            // Fallback: push the first item from currentCaseData if getRandomItem fails unexpectedly
+            const fallbackItem = currentCaseData.items[0]; // Explicitly get the item
+            if (fallbackItem) { // Check if it exists before pushing
+                generatedReel.push(fallbackItem);
+            } else {
+                // This case should be impossible if currentCaseData is loaded and items exist
+                setError("Cannot generate reel: No items available.");
+                setIsSpinning(false);
+                return; // Exit if no items can be added
+            }
+        }
     }
 
-    // 2. Determine the winning item
-    const finalItem = getRandomItem();
-    // Insert the winning item near the end (e.g., 3rd to last visible item)
-    generatedReel.splice(totalReelItems - 5, 0, finalItem);
+    // 2. Determine the winning item (already done above)
+    // Insert the winning item near the end (e.g., 5th to last visible item)
+    const winningIndex = totalReelItems - 5;
+    // Ensure currentWinningItem is not null before assigning
+    generatedReel[winningIndex] = currentWinningItem; // Already checked currentWinningItem is not null
     setReelItems(generatedReel);
 
     // 3. Calculate animation offset
-    // We want the reel to stop visually centered on the winning item
-    // Center position = middle of the container
     const containerWidth = reelRef.current?.offsetWidth ?? 0;
     const centerOffset = containerWidth / 2 - REEL_ITEM_WIDTH / 2;
-    // Target position = (index of winning item * item width) - center offset
-    const targetIndex = totalReelItems - 5;
-    const targetScroll = targetIndex * REEL_ITEM_WIDTH - centerOffset;
+    const targetScroll = winningIndex * REEL_ITEM_WIDTH - centerOffset;
 
-    // 4. Apply animation using CSS transitions (or JS animation library)
+    // 4. Apply animation
     if (reelRef.current) {
-        reelRef.current.style.transition = 'none'; // Reset transition
-        reelRef.current.style.transform = 'translateX(0px)'; // Reset position
-
-        // Force reflow to apply reset before animation
-        void reelRef.current.offsetWidth;
-
-        reelRef.current.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.25, 0.1, 0.25, 1)`; // Ease-out curve
+        reelRef.current.style.transition = 'none';
+        reelRef.current.style.transform = 'translateX(0px)';
+        void reelRef.current.offsetWidth; // Force reflow
+        reelRef.current.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.25, 0.1, 0.25, 1)`;
         reelRef.current.style.transform = `translateX(-${targetScroll}px)`;
     }
 
     // 5. Set timeout to stop spinning state and show result
     setTimeout(() => {
       setIsSpinning(false);
-      setWonItem(finalItem);
+      setWonItem(currentWinningItem); // Set the winning item
+
+      // --- Log details for debugging ---
+      console.log(`[CaseOpener] Won item details:`, currentWinningItem);
+      if (currentWinningItem?.image_url) {
+          console.log(`[CaseOpener] Attempting to display image from: http://localhost:3001${currentWinningItem.image_url}`);
+      } else {
+          console.log(`[CaseOpener] No image_url found for won item.`);
+      }
+      // --- End Log details ---
+
+      // Stop the case opening sound first
+      if (caseAudioRef.current) {
+          console.log("[CaseOpener] Stopping case opening sound on reveal.");
+          caseAudioRef.current.pause();
+          caseAudioRef.current.src = '';
+          caseAudioRef.current = null;
+      }
+
+      // --- Play Item Sound ---
+      if (currentWinningItem?.sound_url) { // Play sound associated with the WON item
+          try {
+              // Construct the full URL by prepending the backend origin
+              const backendOrigin = 'http://localhost:3001';
+              const fullSoundUrl = backendOrigin + currentWinningItem.sound_url;
+              console.log(`[CaseOpener] Attempting to play sound from: ${fullSoundUrl}`);
+              const newAudio = new Audio(fullSoundUrl);
+              newAudio.volume = volume; // Use volume state
+              audioRef.current = newAudio; // Store the new audio instance
+              newAudio.play().catch(e => {
+                  console.error("Error playing item sound:", e);
+                  audioRef.current = null; // Clear ref on playback error
+              });
+              // Optional: Clear ref when audio finishes playing naturally
+              newAudio.onended = () => {
+                  console.log("[CaseOpener] Sound finished playing.");
+                  audioRef.current = null;
+              };
+          } catch (e) {
+              console.error("Error creating item audio object:", e);
+              audioRef.current = null; // Clear ref if object creation fails
+          }
+      }
+      // --- End Play Item Sound ---
+
     }, SPIN_DURATION);
   };
 
-  // Preload reel with some items on initial render
-  useEffect(() => {
-    setReelItems(items.slice(0, 10)); // Initial placeholder items
-  }, []);
+  if (error) {
+      return <div style={{ padding: '20px', color: 'red' }}>Error: {error}</div>;
+  }
 
+  // No longer need the loading state as data is imported directly
+  // if (!caseData) {
+  //     return <div style={{ padding: '20px' }}>Loading case data...</div>;
+  // }
 
   return (
     <div style={{ padding: '20px' }}>
-      <h2>Case Opener</h2>
-      <hr className="cs-hr" style={{ margin: '15px 0' }} />
+      {/* Top Controls: Case Selection and Volume */}
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+          {/* Case Selection */}
+          <div>
+              <label htmlFor="case-select" style={{ marginRight: '10px' }}>Select Case:</label>
+              <select
+                  id="case-select"
+              value={selectedCaseId}
+              onChange={(e) => setSelectedCaseId(e.target.value)}
+              disabled={isLoading || (availableCases.length === 0 && !currentCaseData)} // Disable if loading or no cases and no fallback
+              className="cs-input" // Use existing style if suitable
+              style={{ minWidth: '200px' }}
+          >
+              {/* Add placeholder only if there are actual cases */}
+              {availableCases.length > 0 && <option value="" disabled>-- Select a Case --</option>}
+              {availableCases.map(caseInfo => (
+                  <option key={caseInfo.id} value={caseInfo.id}>
+                      {caseInfo.name} (ID: {caseInfo.id})
+                  </option>
+              ))}
+              </select>
+              {/* Adjust message based on whether fallback is loaded */}
+              {availableCases.length === 0 && !isLoading && !currentCaseData && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
+              {availableCases.length === 0 && !isLoading && currentCaseData?.id === 0 && <span style={{ marginLeft: '10px', color: 'lightblue' }}>Showing Default Case</span>}
+          </div>
 
-      {/* The visual container for the reel */}
+          {/* Volume Slider */}
+          <div className="cs-slider" style={{ maxWidth: '200px' /* Adjusted width */ }}>
+            <div className="ruler"></div>
+            <input
+              id="volume-range"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+            />
+            <label htmlFor="volume-range">Volume: {Math.round(volume * 100)}%</label>
+          </div>
+      </div>
+
+      {/* Display Loading / Error / Case Info */}
+      {isLoading && <p>Loading case data...</p>}
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+
+      {currentCaseData && !isLoading && !error && (
+          <>
+              <h2>{currentCaseData.name}</h2>
+              <p>{currentCaseData.description ?? 'No description.'}</p>
+              <hr className="cs-hr" style={{ margin: '15px 0' }} />
+
+              {/* The visual container for the reel */}
       <div className="case-opener-viewport">
         <div className="case-opener-reel" ref={reelRef}>
           {reelItems.map((item, index) => (
             <div
-              key={`${item.name}-${index}`} // Need a unique key for list items
-              className="case-opener-item"
-              style={{ color: rarityColors[item.rarity] || 'white' }}
+              key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
+              // Conditionally add 'no-image' class if image_url is missing
+              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
+              style={{ color: item.color || 'white' }} // Use color from item data
             >
-              {item.name}
+              {/* Wrap name in a span for specific styling */}
+              <span className="case-opener-item-name">{item.name}</span>
+              {/* Add image if URL exists */}
+              {item.image_url && (
+                <img
+                  src={`http://localhost:3001${item.image_url}`}
+                  alt={item.name}
+                  className="case-opener-item-image"
+                  // Basic error handling for image loading
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                />
+              )}
             </div>
           ))}
         </div>
-         {/* Center marker */}
-        <div className="case-opener-marker"></div>
-      </div>
+                 {/* Center marker */}
+                <div className="case-opener-marker"></div>
+              </div>
 
-      <StyledButton onClick={startSpin} disabled={isSpinning} style={{ marginTop: '20px' }}>
-        {isSpinning ? 'Opening...' : 'Open Case'}
-      </StyledButton>
+              {/* Removed Volume Slider from here */}
 
-      {/* Display the won item */}
+              <StyledButton onClick={startSpin} disabled={isSpinning || !currentCaseData || currentCaseData.items.length === 0} style={{ marginTop: '20px' }}>
+                {isSpinning ? 'Opening...' : 'Open Case'}
+              </StyledButton>
+          </>
+      )}
+
+
+      {/* Display the won item (remains largely the same) */}
       {wonItem && !isSpinning && (
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
           <h3>You unboxed:</h3>
           <p style={{
-            color: rarityColors[wonItem.rarity] || 'white',
+            color: wonItem.color || 'white',
             fontSize: '1.5em',
             fontWeight: 'bold',
-            border: `2px solid ${rarityColors[wonItem.rarity] || 'white'}`,
+            border: `2px solid ${wonItem.color || 'white'}`,
             padding: '10px',
             display: 'inline-block',
             marginTop: '5px',
@@ -145,6 +461,32 @@ function CaseOpener() {
            }}>
             {wonItem.name}
           </p>
+          {/* Display Image if URL exists */}
+          {wonItem.image_url && (
+            <img
+                // Construct the full URL by prepending the backend origin
+                src={`http://localhost:3001${wonItem.image_url}`}
+                alt={wonItem.name}
+                // Standardize size and fit
+                style={{
+                    display: 'block',
+                    width: '200px', // Fixed width
+                    height: '200px', // Fixed height
+                    objectFit: 'contain', // Fit image within bounds, maintain aspect ratio
+                    margin: '10px auto',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: 'var(--input-bg)' // Add a subtle background for contrast
+                }}
+                onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
+            />
+          )}
+          {/* Display Rules if text exists */}
+          {wonItem.rules && (
+            <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
+                <strong>Rules:</strong>
+                <p>{wonItem.rules}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
