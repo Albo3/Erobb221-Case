@@ -26,6 +26,7 @@ interface CaseData {
 interface CaseInfo {
     id: number;
     name: string;
+    image_path: string | null; // Add image_path
 }
 
 
@@ -355,32 +356,8 @@ function CaseOpener() {
 
   return (
     <div style={{ padding: '20px' }}>
-      {/* Top Controls: Case Selection and Volume */}
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Case Selection */}
-          <div>
-              <label htmlFor="case-select" style={{ marginRight: '10px' }}>Select Case:</label>
-              <select
-                  id="case-select"
-              value={selectedCaseId}
-              onChange={(e) => setSelectedCaseId(e.target.value)}
-              disabled={isLoading || (availableCases.length === 0 && !currentCaseData)} // Disable if loading or no cases and no fallback
-              className="cs-input" // Use existing style if suitable
-              style={{ minWidth: '200px' }}
-          >
-              {/* Add placeholder only if there are actual cases */}
-              {availableCases.length > 0 && <option value="" disabled>-- Select a Case --</option>}
-              {availableCases.map(caseInfo => (
-                  <option key={caseInfo.id} value={caseInfo.id}>
-                      {caseInfo.name} (ID: {caseInfo.id})
-                  </option>
-              ))}
-              </select>
-              {/* Adjust message based on whether fallback is loaded */}
-              {availableCases.length === 0 && !isLoading && !currentCaseData && <span style={{ marginLeft: '10px', color: 'orange' }}>No cases found. Create one!</span>}
-              {availableCases.length === 0 && !isLoading && currentCaseData?.id === 0 && <span style={{ marginLeft: '10px', color: 'lightblue' }}>Showing Default Case</span>}
-          </div>
-
+      {/* Top Controls: Volume Slider */}
+      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
           {/* Volume Slider */}
           <div className="cs-slider" style={{ maxWidth: '200px' /* Adjusted width */ }}>
             <div className="ruler"></div>
@@ -397,11 +374,43 @@ function CaseOpener() {
           </div>
       </div>
 
-      {/* Display Loading / Error / Case Info */}
-      {isLoading && <p>Loading case data...</p>}
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+      {/* Case Selection Grid */}
+      <div className="case-selection-grid" style={{ marginBottom: '20px' }}>
+          {availableCases.length > 0 ? (
+              availableCases.map(caseInfo => (
+                  <div
+                      key={caseInfo.id}
+                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
+                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
+                  >
+                      {/* Display image if path exists */}
+                      {caseInfo.image_path && (
+                          <img
+                              src={`http://localhost:3001${caseInfo.image_path}`}
+                              alt={caseInfo.name}
+                              className="case-grid-item-image" // Add class for styling
+                              loading="lazy" // Lazy load images
+                              onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if error
+                          />
+                      )}
+                      {/* Overlay name */}
+                      <span className="case-grid-item-name-overlay">{caseInfo.name}</span>
+                  </div>
+              ))
+          ) : (
+              // Handle loading or no cases state for the grid area
+              !isLoading && !currentCaseData && <p style={{ color: 'orange', gridColumn: '1/-1' }}>No cases found. Create one in Admin Mode!</p>
+          )}
+          {/* Display loading indicator within the grid area if needed */}
+          {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
+      </div>
 
-      {currentCaseData && !isLoading && !error && (
+
+      {/* Display Loading / Error / Case Info - Keep error display */}
+      {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
+
+      {/* Only show the opener section if a case is selected */}
+      {selectedCaseId && currentCaseData && !isLoading && !error && (
           <>
               <h2>{currentCaseData.name}</h2>
               <p>{currentCaseData.description ?? 'No description.'}</p>
