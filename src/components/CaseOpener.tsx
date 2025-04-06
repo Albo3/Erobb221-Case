@@ -7,16 +7,16 @@ import './CaseOpener.css';
 // Define interfaces for case data structure (CaseItem remains the same)
 interface CaseItem {
   name: string;
-  // weight: number; // Weight is no longer directly used from DB
   color: string;
-  image_url?: string | null; // Add image_url
-  rules?: string | null; // Add rules
+  image_url?: string | null;
+  rules?: string | null;
+  sound_url?: string | null; // Added item sound_url
 }
 
 interface CaseData {
   name: string;
-  description: string | null; // Allow null description
-  sound_url?: string | null; // Add sound_url
+  description: string | null;
+  // sound_url?: string | null; // Removed case sound_url
   items: CaseItem[];
   id?: number;
 }
@@ -73,22 +73,22 @@ function CaseOpener() {
                       id: 0,
                       name: "Default Starter Case",
                       description: "A basic case loaded because the database is empty.",
-                      sound_url: null, // No sound for default
+                      // No case sound_url
                       items: [
-                          // Default items don't have weight, image, or rules here
-                          { name: "Default Gray", color: "#b0c3d9" },
-                          { name: "Default Blue", color: "#5e98d9" },
-                          { name: "Default Purple", color: "#4b69ff" },
-                          { name: "Default Gold", color: "#ffd700" },
+                          // Add nulls for optional fields in default items
+                          { name: "Default Gray", color: "#b0c3d9", image_url: null, rules: null, sound_url: null },
+                          { name: "Default Blue", color: "#5e98d9", image_url: null, rules: null, sound_url: null },
+                          { name: "Default Purple", color: "#4b69ff", image_url: null, rules: null, sound_url: null },
+                          { name: "Default Gold", color: "#ffd700", image_url: null, rules: null, sound_url: null },
                       ]
                   });
                   // Initialize reel for fallback case
                   setReelItems([
-                      { name: "Default Gray", color: "#b0c3d9" },
-                      { name: "Default Blue", color: "#5e98d9" },
-                      { name: "Default Purple", color: "#4b69ff" },
-                      { name: "Default Gold", color: "#ffd700" },
-                  ].slice(0, 10)); // Slice still works, just uses color
+                      { name: "Default Gray", color: "#b0c3d9", image_url: null, rules: null, sound_url: null },
+                      { name: "Default Blue", color: "#5e98d9", image_url: null, rules: null, sound_url: null },
+                      { name: "Default Purple", color: "#4b69ff", image_url: null, rules: null, sound_url: null },
+                      { name: "Default Gold", color: "#ffd700", image_url: null, rules: null, sound_url: null },
+                  ].slice(0, 10));
                   setSelectedCaseId('');
               }
               setError(null);
@@ -190,16 +190,7 @@ function CaseOpener() {
     // Check if spinning or if case data isn't loaded
     if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
 
-     // --- Play Sound ---
-     if (currentCaseData.sound_url) {
-        try {
-            const audio = new Audio(currentCaseData.sound_url);
-            audio.play().catch(e => console.error("Error playing sound:", e)); // Catch potential play errors
-        } catch (e) {
-            console.error("Error creating audio object:", e);
-        }
-     }
-     // --- End Play Sound ---
+     // Sound playing moved to after item is won
 
     const currentWinningItem = getRandomItem();
     if (!currentWinningItem) {
@@ -255,7 +246,33 @@ function CaseOpener() {
     // 5. Set timeout to stop spinning state and show result
     setTimeout(() => {
       setIsSpinning(false);
-      setWonItem(currentWinningItem);
+      setWonItem(currentWinningItem); // Set the winning item
+
+      // --- Log details for debugging ---
+      console.log(`[CaseOpener] Won item details:`, currentWinningItem);
+      if (currentWinningItem?.image_url) {
+          console.log(`[CaseOpener] Attempting to display image from: http://localhost:3001${currentWinningItem.image_url}`);
+      } else {
+          console.log(`[CaseOpener] No image_url found for won item.`);
+      }
+      // --- End Log details ---
+
+
+      // --- Play Item Sound ---
+      if (currentWinningItem?.sound_url) { // Play sound associated with the WON item
+          try {
+              // Construct the full URL by prepending the backend origin
+              const backendOrigin = 'http://localhost:3001';
+              const fullSoundUrl = backendOrigin + currentWinningItem.sound_url;
+              console.log(`[CaseOpener] Attempting to play sound from: ${fullSoundUrl}`); // Add logging
+              const audio = new Audio(fullSoundUrl);
+              audio.play().catch(e => console.error("Error playing item sound:", e));
+          } catch (e) {
+              console.error("Error creating item audio object:", e);
+          }
+      }
+      // --- End Play Item Sound ---
+
     }, SPIN_DURATION);
   };
 
@@ -347,9 +364,19 @@ function CaseOpener() {
           {/* Display Image if URL exists */}
           {wonItem.image_url && (
             <img
-                src={wonItem.image_url}
+                // Construct the full URL by prepending the backend origin
+                src={`http://localhost:3001${wonItem.image_url}`}
                 alt={wonItem.name}
-                style={{ display: 'block', maxWidth: '200px', maxHeight: '200px', margin: '10px auto', border: '1px solid var(--border-color)' }}
+                // Standardize size and fit
+                style={{
+                    display: 'block',
+                    width: '200px', // Fixed width
+                    height: '200px', // Fixed height
+                    objectFit: 'contain', // Fit image within bounds, maintain aspect ratio
+                    margin: '10px auto',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: 'var(--input-bg)' // Add a subtle background for contrast
+                }}
                 onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
             />
           )}
