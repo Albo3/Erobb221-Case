@@ -45,7 +45,7 @@ function App() {
   // Handler for receiving a new unboxed item from CaseOpener
   const handleNewUnbox = (newItem: CaseItem) => {
       setUnboxedHistory(prevHistory => {
-          const updatedHistory = [newItem, ...prevHistory].slice(0, 20); // Add to start, limit to 20
+          const updatedHistory = [newItem, ...prevHistory].slice(0, 15); // Add to start, limit to 15
           // Save updated history to localStorage
           try {
               localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
