@@ -68,7 +68,7 @@
     background-repeat: repeat;
     background-size: 100px 100px; /* Keep doubled logo size */
     color: var(--text);
-    font-family: ArialPixel, system-ui, sans-serif;
+    font-family: ArialPixel, system-ui, sans-serif; /* Reverted font */
     /* Add the animation */
     animation: scrollBackground 30s linear infinite;
     /* Mask removed */
