@@ -6,11 +6,19 @@ import { unlink } from 'node:fs/promises'; // For deleting files on rollback
 import { join, extname } from 'node:path'; // For path manipulation
 import { randomUUID } from 'node:crypto'; // For unique filenames
 import { existsSync, mkdirSync } from 'node:fs'; // For ensuring upload dirs exist
+import { parseBlob } from 'music-metadata-browser'; // For reading audio duration
+import bcrypt from 'bcrypt'; // For password hashing
 
 // --- Constants ---
 const UPLOADS_DIR = 'uploads';
 const IMAGES_DIR = join(UPLOADS_DIR, 'images');
 const SOUNDS_DIR = join(UPLOADS_DIR, 'sounds');
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_AUDIO_DURATION_SECONDS = 15; // 15 seconds
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/aac', 'audio/flac'];
+// !!! IMPORTANT: In a real application, store this hash securely in an environment variable, NOT hardcoded!
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$vHO4F6ZpPRqk4/Jp4vX.qOw.qD89QnEvG.KBfID/i/5wQKtS1vYHu'; // Correct hash for 'caseAdmin!'
 
 // --- Database Setup ---
 const db = new Database('database.sqlite', { create: true });
@@ -214,6 +222,33 @@ app.post('/api/item-templates', async (c) => {
              return c.json({ error: 'Invalid rules_text format.' }, 400);
         }
 
+        // --- File Validation ---
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
+        }
+        if (soundFile) {
+            if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
+                return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
+            }
+            try {
+                const metadata = await parseBlob(soundFile);
+                if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
+                    return c.json({ error: `Audio duration exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
+                }
+                console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
+            } catch (metaError) {
+                console.error('Error reading audio metadata:', metaError);
+                // Decide if you want to reject or allow if metadata can't be read
+                return c.json({ error: 'Could not read audio file metadata to verify duration.' }, 400);
+            }
+        }
+        // --- End File Validation ---
+
         const insertTemplateStmt = db.prepare(`
             INSERT INTO item_templates (base_name, image_path, sound_path, rules_text)
             VALUES (?, ?, ?, ?) RETURNING id
@@ -330,6 +365,33 @@ app.put('/api/item-templates/:id', async (c) => {
             return c.json({ error: 'Item template base_name is required.' }, 400);
         }
         // rulesText can be explicitly null/empty to clear it
+
+        // --- File Validation ---
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
+        }
+        if (soundFile) {
+            if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
+                return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
+            }
+             try {
+                const metadata = await parseBlob(soundFile);
+                if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
+                    return c.json({ error: `Audio duration exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
+                }
+                console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
+            } catch (metaError) {
+                console.error('Error reading audio metadata:', metaError);
+                return c.json({ error: 'Could not read audio file metadata to verify duration.' }, 400);
+            }
+        }
+        // --- End File Validation ---
+
 
         const updateTemplateStmt = db.prepare(`
             UPDATE item_templates
@@ -599,6 +661,17 @@ app.post('/api/cases', async (c) => {
         }
         // --- End Validation ---
 
+        // --- File Validation ---
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
+        }
+        // --- End File Validation ---
+
         // --- Database Insertion (Transaction) ---
         // Add image_path to the insert statement
         const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
@@ -731,6 +804,17 @@ app.put('/api/cases/:id', async (c) => {
             }
         }
         // --- End Validation ---
+
+        // --- File Validation ---
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
+        }
+        // --- End File Validation ---
 
         // --- Database Update (Transaction) ---
         // Update statement now includes image_path
@@ -870,6 +954,43 @@ app.delete('/api/cases/:id', async (c) => {
         return c.json({ error: `Database error during case deletion: ${errorMessage}` }, 500);
     }
 });
+
+// --- Admin Verification Route ---
+app.post('/api/verify-admin', async (c) => {
+    console.log('POST /api/verify-admin requested');
+    try {
+        const body = await c.req.json();
+        const { password } = body;
+
+        if (!password || typeof password !== 'string') {
+            return c.json({ error: 'Password is required.' }, 400);
+        }
+
+        if (!ADMIN_PASSWORD_HASH) {
+             console.error("CRITICAL: ADMIN_PASSWORD_HASH is not set!");
+             return c.json({ error: 'Server configuration error.' }, 500);
+        }
+
+        const match = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+
+        if (match) {
+            console.log('Admin password verification successful.');
+            return c.json({ success: true });
+        } else {
+            console.log('Admin password verification failed.');
+            return c.json({ success: false }, 401); // Unauthorized
+        }
+
+    } catch (error: any) {
+         console.error('Error processing POST /api/verify-admin:', error);
+         // Distinguish between JSON parsing error and bcrypt error if needed
+         if (error instanceof SyntaxError) {
+             return c.json({ error: 'Invalid request body.' }, 400);
+         }
+         return c.json({ error: 'An unexpected error occurred during verification.' }, 500);
+    }
+});
+
 
 // --- History API Routes (REMOVED) ---
 
