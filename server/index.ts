@@ -14,6 +14,8 @@ const IMAGES_DIR = join(UPLOADS_DIR, 'images');
 const SOUNDS_DIR = join(UPLOADS_DIR, 'sounds');
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const MAX_AUDIO_DURATION_SECONDS = 15; // 15 seconds
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/aac', 'audio/flac'];
 
 // --- Database Setup ---
 const db = new Database('database.sqlite', { create: true });
@@ -218,10 +220,18 @@ app.post('/api/item-templates', async (c) => {
         }
 
         // --- File Validation ---
-        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
-            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
         }
         if (soundFile) {
+            if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
+                return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
+            }
             try {
                 const metadata = await parseBlob(soundFile);
                 if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
@@ -354,10 +364,18 @@ app.put('/api/item-templates/:id', async (c) => {
         // rulesText can be explicitly null/empty to clear it
 
         // --- File Validation ---
-        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
-            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
         }
         if (soundFile) {
+            if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
+                return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
+            }
              try {
                 const metadata = await parseBlob(soundFile);
                 if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
@@ -641,8 +659,13 @@ app.post('/api/cases', async (c) => {
         // --- End Validation ---
 
         // --- File Validation ---
-        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
-            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
         }
         // --- End File Validation ---
 
@@ -780,8 +803,13 @@ app.put('/api/cases/:id', async (c) => {
         // --- End Validation ---
 
         // --- File Validation ---
-        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
-            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        if (imageFile) {
+            if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+                return c.json({ error: `Invalid image file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}` }, 400);
+            }
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+            }
         }
         // --- End File Validation ---
 
