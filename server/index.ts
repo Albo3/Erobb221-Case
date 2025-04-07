@@ -6,11 +6,14 @@ import { unlink } from 'node:fs/promises'; // For deleting files on rollback
 import { join, extname } from 'node:path'; // For path manipulation
 import { randomUUID } from 'node:crypto'; // For unique filenames
 import { existsSync, mkdirSync } from 'node:fs'; // For ensuring upload dirs exist
+import { parseBlob } from 'music-metadata-browser'; // For reading audio duration
 
 // --- Constants ---
 const UPLOADS_DIR = 'uploads';
 const IMAGES_DIR = join(UPLOADS_DIR, 'images');
 const SOUNDS_DIR = join(UPLOADS_DIR, 'sounds');
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_AUDIO_DURATION_SECONDS = 15; // 15 seconds
 
 // --- Database Setup ---
 const db = new Database('database.sqlite', { create: true });
@@ -214,6 +217,25 @@ app.post('/api/item-templates', async (c) => {
              return c.json({ error: 'Invalid rules_text format.' }, 400);
         }
 
+        // --- File Validation ---
+        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        }
+        if (soundFile) {
+            try {
+                const metadata = await parseBlob(soundFile);
+                if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
+                    return c.json({ error: `Audio duration exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
+                }
+                console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
+            } catch (metaError) {
+                console.error('Error reading audio metadata:', metaError);
+                // Decide if you want to reject or allow if metadata can't be read
+                return c.json({ error: 'Could not read audio file metadata to verify duration.' }, 400);
+            }
+        }
+        // --- End File Validation ---
+
         const insertTemplateStmt = db.prepare(`
             INSERT INTO item_templates (base_name, image_path, sound_path, rules_text)
             VALUES (?, ?, ?, ?) RETURNING id
@@ -330,6 +352,25 @@ app.put('/api/item-templates/:id', async (c) => {
             return c.json({ error: 'Item template base_name is required.' }, 400);
         }
         // rulesText can be explicitly null/empty to clear it
+
+        // --- File Validation ---
+        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        }
+        if (soundFile) {
+             try {
+                const metadata = await parseBlob(soundFile);
+                if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
+                    return c.json({ error: `Audio duration exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
+                }
+                console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
+            } catch (metaError) {
+                console.error('Error reading audio metadata:', metaError);
+                return c.json({ error: 'Could not read audio file metadata to verify duration.' }, 400);
+            }
+        }
+        // --- End File Validation ---
+
 
         const updateTemplateStmt = db.prepare(`
             UPDATE item_templates
@@ -599,6 +640,12 @@ app.post('/api/cases', async (c) => {
         }
         // --- End Validation ---
 
+        // --- File Validation ---
+        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        }
+        // --- End File Validation ---
+
         // --- Database Insertion (Transaction) ---
         // Add image_path to the insert statement
         const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
@@ -731,6 +778,12 @@ app.put('/api/cases/:id', async (c) => {
             }
         }
         // --- End Validation ---
+
+        // --- File Validation ---
+        if (imageFile && imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+            return c.json({ error: `Image file size exceeds the limit of ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB.` }, 400);
+        }
+        // --- End File Validation ---
 
         // --- Database Update (Transaction) ---
         // Update statement now includes image_path

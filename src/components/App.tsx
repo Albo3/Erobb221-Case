@@ -67,7 +67,7 @@ function App() {
             <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
               Erobb221 Case Manager
             </h1>
-            <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}>Open and Create Cases</p>
+            <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}></p>
           </div>
           {/* Right Side: Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>

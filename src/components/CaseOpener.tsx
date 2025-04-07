@@ -422,7 +422,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               </div>
           )}
           {/* Placeholder text if nothing won yet */}
-          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Click "Open Case" to begin!</p>}
+          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Click "Open Case" to begin</p>}
       </div>
 
 
