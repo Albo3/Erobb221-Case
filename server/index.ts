@@ -7,6 +7,7 @@ import { join, extname } from 'node:path'; // For path manipulation
 import { randomUUID } from 'node:crypto'; // For unique filenames
 import { existsSync, mkdirSync } from 'node:fs'; // For ensuring upload dirs exist
 import { parseBlob } from 'music-metadata-browser'; // For reading audio duration
+import bcrypt from 'bcrypt'; // For password hashing
 
 // --- Constants ---
 const UPLOADS_DIR = 'uploads';
@@ -16,6 +17,8 @@ const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const MAX_AUDIO_DURATION_SECONDS = 15; // 15 seconds
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/aac', 'audio/flac'];
+// !!! IMPORTANT: In a real application, store this hash securely in an environment variable, NOT hardcoded!
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$vHO4F6ZpPRqk4/Jp4vX.qOw.qD89QnEvG.KBfID/i/5wQKtS1vYHu'; // Correct hash for 'caseAdmin!'
 
 // --- Database Setup ---
 const db = new Database('database.sqlite', { create: true });
@@ -951,6 +954,43 @@ app.delete('/api/cases/:id', async (c) => {
         return c.json({ error: `Database error during case deletion: ${errorMessage}` }, 500);
     }
 });
+
+// --- Admin Verification Route ---
+app.post('/api/verify-admin', async (c) => {
+    console.log('POST /api/verify-admin requested');
+    try {
+        const body = await c.req.json();
+        const { password } = body;
+
+        if (!password || typeof password !== 'string') {
+            return c.json({ error: 'Password is required.' }, 400);
+        }
+
+        if (!ADMIN_PASSWORD_HASH) {
+             console.error("CRITICAL: ADMIN_PASSWORD_HASH is not set!");
+             return c.json({ error: 'Server configuration error.' }, 500);
+        }
+
+        const match = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+
+        if (match) {
+            console.log('Admin password verification successful.');
+            return c.json({ success: true });
+        } else {
+            console.log('Admin password verification failed.');
+            return c.json({ success: false }, 401); // Unauthorized
+        }
+
+    } catch (error: any) {
+         console.error('Error processing POST /api/verify-admin:', error);
+         // Distinguish between JSON parsing error and bcrypt error if needed
+         if (error instanceof SyntaxError) {
+             return c.json({ error: 'Invalid request body.' }, 400);
+         }
+         return c.json({ error: 'An unexpected error occurred during verification.' }, 500);
+    }
+});
+
 
 // --- History API Routes (REMOVED) ---
 

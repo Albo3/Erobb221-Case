@@ -14,9 +14,11 @@
     "build": "bun build src/index.tsx --outdir ./build --public-dir ./public"
   },
   "dependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.1",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "bcrypt": "^5.1.1",
     "buffer": "^6.0.3",
     "concurrently": "^9.1.2",
     "hono": "^4.7.5",

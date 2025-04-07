@@ -53,11 +53,41 @@ function App() {
   };
 
   // Handler for the 'o' click interaction
-  const handleInteraction = () => {
+  const handleInteraction = async () => { // Make async for fetch
     console.log("Interaction triggered. Current sequence state:", sequenceState);
     if (sequenceState === 1) {
-      setIsAdminMode(!isAdminMode); // Toggle admin mode
-      console.log("Admin mode toggled to:", !isAdminMode);
+      const passwordAttempt = window.prompt("Enter admin password:");
+      if (passwordAttempt !== null) { // Check if user clicked OK (null if Cancel)
+        try {
+          const response = await fetch('http://localhost:3001/api/verify-admin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password: passwordAttempt }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setIsAdminMode(!isAdminMode); // Toggle admin mode on success
+              console.log("Admin mode toggled to:", !isAdminMode);
+              alert("Admin mode " + (!isAdminMode ? "enabled." : "disabled."));
+            } else {
+              console.log("Password verification failed.");
+              alert("Incorrect password.");
+            }
+          } else {
+            console.error("Verification request failed:", response.status, response.statusText);
+            alert("Verification failed. Status: " + response.status);
+          }
+        } catch (error) {
+          console.error("Error during admin verification:", error);
+          alert("An error occurred during verification.");
+        }
+      } else {
+        console.log("Password prompt cancelled.");
+      }
     }
     // Always reset sequence state after interaction attempt
     setSequenceState(0);
