@@ -144,7 +144,8 @@ function App() {
       </header>
 
       {/* Wrapper for Centered Main Content + Footer */}
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      {/* Re-add className for styling */}
+      <div className="main-content-area" style={{ maxWidth: '800px', margin: '0 auto' }}>
         {/* Main Content Area */}
         <div>
           {isAdminMode ? (

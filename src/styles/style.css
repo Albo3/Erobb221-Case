@@ -63,8 +63,65 @@
     font-weight: 400;
     line-height: 1.5;
     background-color: var(--bg);
+    /* Add the repeating logo - use relative path */
+    background-image: url('../../uploads/images/emonbag.webp');
+    background-repeat: repeat;
+    background-size: 100px 100px; /* Keep doubled logo size */
     color: var(--text);
-    font-family: ArialPixel, system-ui, sans-serif;
+    font-family: ArialPixel, system-ui, sans-serif; /* Reverted font */
+    /* Add the animation */
+    animation: scrollBackground 30s linear infinite;
+    /* Mask removed */
+  }
+
+  /* Define the scrolling animation */
+  @keyframes scrollBackground {
+    from {
+      background-position: 0 0;
+    }
+    to {
+      /* Match background-position to background-size for smooth loop */
+      background-position: 100px 100px;
+    }
+  }
+
+/* Add outline to header title */
+header h1 {
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+}
+
+/* Style history item text */
+.history-panel ul li span {
+  font-size: 1em; /* Increase from 0.9em */
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Add outline */
+  /* We keep the inline color style from App.tsx for rarity */
+}
+
+  /* Make main content, history, and result area semi-transparent */
+  .main-content-area,
+  .history-panel,
+  .unbox-result-area {
+    /* Use rgba for transparency - adjust alpha (last value) as needed (e.g., 0.9 for 90% opaque) */
+    background-color: rgba(74, 89, 66, 0.9); /* Derived from --bg */
+    padding: 15px;
+    border: 1px solid var(--border-dark);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    position: relative; /* Ensure stacking context if needed */
+    z-index: 1; /* Ensure content is above potential pseudo-elements if added later */
+  }
+
+  /* Specific overrides */
+  .history-panel {
+     padding: 10px;
+     background-color: rgba(62, 70, 55, 0.9); /* Derived from --secondary-bg */
+  }
+
+  .unbox-result-area {
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-light);
+    background-color: rgba(74, 89, 66, 0.9); /* Ensure it uses the main bg derived color */
+     /* Padding and shadow inherited */
+     /* border inherited, but border-bottom overrides */
   }
 
   /* Scrollbars */
