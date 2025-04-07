@@ -2,9 +2,9 @@ import { Buffer } from 'buffer'; // Re-import Buffer
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './components/App';
-import './styles/style.css';
-import './styles/cs16.css';
-import './components/CaseOpener.css';
+import './styles/cs16.css'; // Import base component styles first
+import './styles/style.css'; // Import global styles and overrides next
+import './components/CaseOpener.css'; // Import component-specific styles last
 import logger from './logger'; // Import the logger
 
 // Assign Buffer and render React app only if in a browser environment

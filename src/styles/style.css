@@ -121,37 +121,8 @@ header h1 {
     border-bottom: 1px solid var(--border-light);
     background-color: rgba(74, 89, 66, 0.9); /* Ensure it uses the main bg derived color */
      /* Padding and shadow inherited */
-  }
-
-  /* Make main content, history, and result area semi-transparent */
-  .main-content-area,
-  .history-panel,
-  .unbox-result-area {
-    /* Use rgba for transparency - adjust alpha (last value) as needed (e.g., 0.9 for 90% opaque) */
-    background-color: rgba(74, 89, 66, 0.9); /* Derived from --bg */
-    padding: 15px;
-    border: 1px solid var(--border-dark);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    position: relative; /* Ensure stacking context if needed */
-    z-index: 1; /* Ensure content is above body background */
-  }
-
-  /* Specific overrides */
-  .history-panel {
-     padding: 10px;
-     background-color: rgba(62, 70, 55, 0.9); /* Derived from --secondary-bg */
-     /* Ensure absolute positioning styles from App.tsx are respected */
-     /* border, box-shadow, z-index inherited */
-  }
-
-  .unbox-result-area {
-    margin-bottom: 15px;
-    border-bottom: 1px solid var(--border-light);
-    background-color: rgba(74, 89, 66, 0.9); /* Ensure it uses the main bg derived color */
-     /* Padding and shadow inherited */
      /* border inherited, but border-bottom overrides */
   }
-
 
   /* Scrollbars */
 
