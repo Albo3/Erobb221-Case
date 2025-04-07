@@ -22,6 +22,7 @@ interface CaseItem {
 function App() {
   const [isAdminMode, setIsAdminMode] = useState(false); // State for admin mode
   const [volume, setVolume] = useState(0.5);
+  const [sequenceState, setSequenceState] = useState(0); // 0: initial, 1: volume correct
   const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>(() => {
       // Load initial history from localStorage
       try {
@@ -40,7 +41,29 @@ function App() {
   // Handler for volume change (passed down)
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
+    // Update sequence state based on volume
+    if (newVolume === 0.99) {
+      setSequenceState(1);
+      console.log("Sequence state set to 1 (volume correct)");
+    } else if (sequenceState === 1) {
+      // Reset if volume changes away from 0.99 *after* being set correctly
+      setSequenceState(0);
+      console.log("Sequence state reset to 0 (volume changed)");
+    }
   };
+
+  // Handler for the 'o' click interaction
+  const handleInteraction = () => {
+    console.log("Interaction triggered. Current sequence state:", sequenceState);
+    if (sequenceState === 1) {
+      setIsAdminMode(!isAdminMode); // Toggle admin mode
+      console.log("Admin mode toggled to:", !isAdminMode);
+    }
+    // Always reset sequence state after interaction attempt
+    setSequenceState(0);
+    console.log("Sequence state reset to 0 after interaction");
+  };
+
 
   // Handler for receiving a new unboxed item from CaseOpener
   const handleNewUnbox = (newItem: CaseItem) => {
@@ -65,7 +88,7 @@ function App() {
           {/* Left Side: Title/Subtitle */}
           <div style={{ textAlign: 'left' }}>
             <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
-              Erobb221 Case Manager
+              Er<span onClick={handleInteraction} style={{ cursor: 'pointer' }}>o</span>bb221 Case Manager
             </h1>
             <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}></p>
           </div>
@@ -85,18 +108,7 @@ function App() {
               />
               <label htmlFor="volume-range-header" style={{ fontSize: '0.8em' }}>Volume: {Math.round(volume * 100)}%</label>
             </div>
-            {/* Admin Mode Toggle Checkbox */}
-            <div style={{ fontSize: '0.9em' }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={isAdminMode}
-                  onChange={handleAdminToggle}
-                  style={{ marginRight: '4px', verticalAlign: 'middle' }}
-                />
-                Admin Mode
-              </label>
-            </div>
+            {/* Admin Mode Toggle Checkbox REMOVED */}
           </div>
         </div> {/* Close header centering wrapper div */}
       </header>
