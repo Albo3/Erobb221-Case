@@ -85,6 +85,18 @@
     }
   }
 
+/* Add outline to header title */
+header h1 {
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+}
+
+/* Style history item text */
+.history-panel ul li span {
+  font-size: 1em; /* Increase from 0.9em */
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Add outline */
+  /* We keep the inline color style from App.tsx for rarity */
+}
+
   /* Make main content, history, and result area semi-transparent */
   .main-content-area,
   .history-panel,
