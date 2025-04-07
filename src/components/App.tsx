@@ -44,17 +44,17 @@ function App() {
     // Update sequence state based on volume
     if (newVolume === 0.99) {
       setSequenceState(1);
-      console.log("Sequence state set to 1 (volume correct)");
+      // console.log("Sequence state set to 1 (volume correct)"); // Removed log
     } else if (sequenceState === 1) {
       // Reset if volume changes away from 0.99 *after* being set correctly
       setSequenceState(0);
-      console.log("Sequence state reset to 0 (volume changed)");
+      // console.log("Sequence state reset to 0 (volume changed)"); // Removed log
     }
   };
 
   // Handler for the 'o' click interaction
   const handleInteraction = async () => { // Make async for fetch
-    console.log("Interaction triggered. Current sequence state:", sequenceState);
+    // console.log("Interaction triggered. Current sequence state:", sequenceState); // Removed log
     if (sequenceState === 1) {
       const passwordAttempt = window.prompt("Enter admin password:");
       if (passwordAttempt !== null) { // Check if user clicked OK (null if Cancel)
@@ -71,10 +71,10 @@ function App() {
             const result = await response.json();
             if (result.success) {
               setIsAdminMode(!isAdminMode); // Toggle admin mode on success
-              console.log("Admin mode toggled to:", !isAdminMode);
+              // console.log("Admin mode toggled to:", !isAdminMode); // Removed log
               alert("Admin mode " + (!isAdminMode ? "enabled." : "disabled."));
             } else {
-              console.log("Password verification failed.");
+              // console.log("Password verification failed."); // Removed log
               alert("Incorrect password.");
             }
           } else {
@@ -86,12 +86,12 @@ function App() {
           alert("An error occurred during verification.");
         }
       } else {
-        console.log("Password prompt cancelled.");
+        // console.log("Password prompt cancelled."); // Removed log
       }
     }
     // Always reset sequence state after interaction attempt
     setSequenceState(0);
-    console.log("Sequence state reset to 0 after interaction");
+    // console.log("Sequence state reset to 0 after interaction"); // Removed log
   };
 
 
@@ -118,7 +118,7 @@ function App() {
           {/* Left Side: Title/Subtitle */}
           <div style={{ textAlign: 'left' }}>
             <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
-              Er<span onClick={handleInteraction} style={{ cursor: 'pointer' }}>o</span>bb221 Case Manager
+              Er<span onClick={handleInteraction} style={{ cursor: sequenceState === 1 ? 'pointer' : 'default' }}>o</span>bb221 Case Manager
             </h1>
             <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}></p>
           </div>
