@@ -379,7 +379,8 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
 
       {/* Won Item Display Area (Moved Above Reel) */}
       {/* Further reduced minHeight, marginBottom, paddingBottom */}
-      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+      {/* Re-add className for styling */}
+      <div className="unbox-result-area" style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
           {wonItem && !isSpinning && (
               <div style={{ textAlign: 'center' }}>
                   <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
