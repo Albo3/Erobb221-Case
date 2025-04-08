@@ -1,7 +1,8 @@
-import React, { useState } from 'react'; // Import useState
+import React, { useState } from 'react';
 import CaseOpener from './CaseOpener';
-import CreateCaseForm from './CreateCaseForm'; // Re-add import
-import ItemTemplateManager from './ItemTemplateManager'; // Re-add import
+import WheelSpinner from './WheelSpinner'; // Import the new component
+import CreateCaseForm from './CreateCaseForm';
+import ItemTemplateManager from './ItemTemplateManager';
 import Tabs, { Tab } from './Tabs'; // Re-add import
 import '../styles/style.css';
 import './CaseOpener.css';
@@ -20,7 +21,8 @@ interface CaseItem {
 
 
 function App() {
-  const [isAdminMode, setIsAdminMode] = useState(false); // State for admin mode
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [displayMode, setDisplayMode] = useState<'case' | 'wheel'>('case'); // State for display mode
   const [volume, setVolume] = useState(0.5);
   const [sequenceState, setSequenceState] = useState(0); // 0: initial, 1: volume correct
   const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>(() => {
@@ -120,10 +122,33 @@ function App() {
             <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
               Er<span onClick={handleInteraction} style={{ cursor: 'pointer' }}>o</span>bb221 Case Manager
             </h1>
-            <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}></p>
+            <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}>Select Mode:</p>
           </div>
           {/* Right Side: Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            {/* Display Mode Radio Buttons */}
+            {!isAdminMode && ( // Only show when not in admin mode
+              <div style={{ display: 'flex', gap: '10px', fontSize: '0.9em' }}>
+                <label>
+                  <input
+                    type="radio"
+                    name="displayMode"
+                    value="case"
+                    checked={displayMode === 'case'}
+                    onChange={() => setDisplayMode('case')}
+                  /> Case Opening
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="displayMode"
+                    value="wheel"
+                    checked={displayMode === 'wheel'}
+                    onChange={() => setDisplayMode('wheel')}
+                  /> Wheel Spin
+                </label>
+              </div>
+            )}
             {/* Volume Slider */}
             <div className="cs-slider" style={{ maxWidth: '150px' }}>
               <div className="ruler"></div>
@@ -167,8 +192,13 @@ function App() {
               </Tab>
             </Tabs>
           ) : (
+            // Non-admin mode: Render based on displayMode
             <main>
-              <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+              {displayMode === 'case' ? (
+                <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+              ) : (
+                <WheelSpinner volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+              )}
             </main>
           )}
         </div>
