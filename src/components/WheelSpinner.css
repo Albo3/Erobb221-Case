@@ -1,0 +1,93 @@
+/* Styles for WheelSpinner component */
+.wheel-spinner-container {
+  /* Container for the whole spinner section */
+  padding-bottom: 20px; /* Add some space below */
+}
+
+.wheel-visual-container {
+  position: relative;
+  width: 600px; /* Match JS constant */
+  height: 600px; /* Match JS constant */
+  margin: 30px auto;
+  /* overflow: hidden; */ /* Allow marker to potentially sit slightly outside */
+}
+
+.wheel-marker {
+  position: absolute;
+  top: -5px; /* Position slightly above the center top */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 15px solid transparent; /* Triangle shape */
+  border-right: 15px solid transparent;
+  border-top: 20px solid var(--accent); /* Use accent color */
+  z-index: 2; /* Ensure marker is above the wheel */
+  /* Add CS 1.6 style border/outline */
+  filter: drop-shadow(-1px -1px 0 var(--border-dark))
+          drop-shadow(1px -1px 0 var(--border-dark))
+          drop-shadow(-1px 1px 0 var(--border-dark))
+          drop-shadow(1px 1px 0 var(--border-dark));
+}
+
+.wheel-graphic {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid var(--border-dark);
+  box-shadow: inset 0 0 0 3px var(--border-light),
+              0 0 10px rgba(0, 0, 0, 0.5);
+  /* background is now handled by segments */
+  will-change: transform;
+  position: relative;
+  overflow: hidden; /* Clip contents to the circle */
+  background-color: var(--secondary-bg); /* Base background */
+}
+
+/* Remove old/unused segment styles */
+/* .wheel-segment { ... } */
+/* .segment-content { ... } */
+/* .segment-image { ... } */
+/* .wheel-background-segments { ... } */
+/* .wheel-bg-segment { ... } */
+
+
+/* Style for the container holding item texts */
+.wheel-item-texts {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    /* This layer rotates with the main wheel */
+}
+
+/* Style for individual text items */
+.wheel-item-text {
+    /* Position and rotation applied inline via getItemStyle */
+    font-family: ArialPixel, system-ui, sans-serif;
+    color: var(--text);
+    text-shadow: 1px 1px 0 var(--border-dark);
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+.segment-name {
+  /* Styles for the inner span containing the text */
+  display: inline-block; /* Needed for background and padding */
+  padding: 2px 5px;
+  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent dark background */
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-weight: bold;
+  /* Color is applied inline based on item.color */
+  word-break: break-word;
+  line-height: 1.1;
+  /* Ensure text shadow is still visible */
+  text-shadow: 1px 1px 0 var(--border-dark);
+}
+
+
+.won-item-details {
+    /* Styles for the won item display area - can reuse styles from CaseOpener if needed */
+    text-align: center;
+}
+
+/* Reuse case selection grid styles from CaseOpener.css */
+/* No need to redefine if they are globally available or imported */
