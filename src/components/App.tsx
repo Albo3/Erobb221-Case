@@ -128,26 +128,32 @@ function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             {/* Display Mode Radio Buttons */}
             {!isAdminMode && ( // Only show when not in admin mode
-              <div style={{ display: 'flex', gap: '10px', fontSize: '0.9em' }}>
-                <label>
+              <fieldset className="cs-fieldset" style={{ border: 'none', padding: 0, margin: 0 }}> {/* Remove default fieldset border/padding */}
+                {/* Optional: Add a legend if desired, or remove if not needed */}
+                {/* <legend>Select Mode</legend> */}
+                <div className="radio-wrapper" style={{ marginBottom: '5px' }}> {/* Use div as wrapper, add spacing */}
                   <input
                     type="radio"
                     name="displayMode"
+                    id="displayModeCase" // Add unique ID
                     value="case"
                     checked={displayMode === 'case'}
                     onChange={() => setDisplayMode('case')}
-                  /> Case Opening
-                </label>
-                <label>
+                  />
+                  <label htmlFor="displayModeCase">Case Opening</label> {/* Use htmlFor */}
+                </div>
+                <div className="radio-wrapper"> {/* Use div as wrapper */}
                   <input
                     type="radio"
                     name="displayMode"
+                    id="displayModeWheel" // Add unique ID
                     value="wheel"
                     checked={displayMode === 'wheel'}
                     onChange={() => setDisplayMode('wheel')}
-                  /> Wheel Spin
-                </label>
-              </div>
+                  />
+                  <label htmlFor="displayModeWheel">Wheel Spin</label> {/* Use htmlFor */}
+                </div>
+              </fieldset>
             )}
             {/* Volume Slider */}
             <div className="cs-slider" style={{ maxWidth: '150px' }}>
