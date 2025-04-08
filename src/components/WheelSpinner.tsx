@@ -11,6 +11,7 @@ interface CaseItem {
   image_url?: string | null;
   rules?: string | null;
   sound_url?: string | null;
+  weight?: number; // Calculated weight based on rarity
 }
 
 // Interface for the list of cases
@@ -30,34 +31,67 @@ interface CaseData {
 
 // Define standard CS:GO rarity colors (used for weighting)
 const RARITY_COLORS = [
-    { name: 'Consumer Grade', value: '#b0c3d9' },
-    { name: 'Industrial Grade', value: '#5e98d9' },
-    { name: 'Mil-Spec', value: '#4b69ff' },
-    { name: 'Restricted', value: '#8847ff' },
-    { name: 'Classified', value: '#d32ce6' },
-    { name: 'Covert', value: '#eb4b4b' },
-    { name: 'Exceedingly Rare', value: '#ffd700' },
+    { name: 'Consumer Grade', value: '#b0c3d9', weight: 100 },
+    { name: 'Industrial Grade', value: '#5e98d9', weight: 50 },
+    { name: 'Mil-Spec', value: '#4b69ff', weight: 25 },
+    { name: 'Restricted', value: '#8847ff', weight: 10 },
+    { name: 'Classified', value: '#d32ce6', weight: 5 },
+    { name: 'Covert', value: '#eb4b4b', weight: 2 },
+    { name: 'Exceedingly Rare', value: '#ffd700', weight: 1 },
 ];
 
-// Helper function to generate conic gradient string with alternating theme colors
-const generateConicGradient = (numItems: number): string => {
-    if (numItems <= 0) {
+// Helper function to get weight based on color
+const getItemWeight = (itemColor: string): number => {
+    const rarity = RARITY_COLORS.find(r => r.value === itemColor);
+    // Ensure a minimum weight to prevent zero-angle segments, but allow very small weights
+    return Math.max(rarity ? rarity.weight : 1, 0.1);
+};
+
+
+// Helper function to generate conic gradient string with weighted segments and borders
+const generateConicGradient = (items: CaseItem[] | null): string => {
+    if (!items || items.length === 0) {
         return 'conic-gradient(var(--secondary-bg) 0deg 360deg)'; // Fallback
     }
-    const anglePerSegment = 360 / numItems;
+
+    const totalWeight = items.reduce((sum, item) => sum + (item.weight ?? 1), 0);
+    if (totalWeight <= 0) {
+         return 'conic-gradient(var(--secondary-bg) 0deg 360deg)'; // Avoid division by zero
+    }
+
     let gradientString = 'conic-gradient(';
+    let currentAngle = 0;
+    const borderThickness = 0.2; // Degrees for the border line
+    const borderColor = 'var(--border-dark)';
     const color1 = 'var(--bg)';
     const color2 = 'var(--secondary-bg)';
 
-    for (let i = 0; i < numItems; i++) {
-        const startAngle = i * anglePerSegment;
-        const endAngle = (i + 1) * anglePerSegment;
-        const color = i % 2 === 0 ? color1 : color2; // Alternate colors
-        gradientString += `${color} ${startAngle}deg ${endAngle}deg`;
-        if (i < numItems - 1) {
-            gradientString += ', ';
+    items.forEach((item, index) => {
+        const weight = item.weight ?? 1;
+        const angleSpan = (weight / totalWeight) * 360;
+        const segmentColor = index % 2 === 0 ? color1 : color2; // Alternate colors
+
+        // Start border (unless it's the very first segment at 0deg)
+        if (currentAngle > 0) {
+            gradientString += `${borderColor} ${currentAngle}deg ${currentAngle + borderThickness}deg, `;
+            currentAngle += borderThickness;
         }
-    }
+
+        // Segment color
+        const segmentEndAngle = currentAngle + Math.max(angleSpan - borderThickness, 0.1); // Ensure positive span, account for border
+        gradientString += `${segmentColor} ${currentAngle}deg ${segmentEndAngle}deg`;
+
+        currentAngle = segmentEndAngle; // Update angle for the next border/segment
+
+        if (index < items.length - 1) {
+             gradientString += ', ';
+        }
+    });
+
+     // Fill any remaining tiny gap (less than border thickness) with border color
+     if (currentAngle < 359.9) {
+         gradientString += `, ${borderColor} ${currentAngle}deg 360deg`;
+     }
 
     gradientString += ')';
     return gradientString;
@@ -72,7 +106,7 @@ interface WheelSpinnerProps {
 
 // Constants
 const SPIN_DURATION_WHEEL = 6000; // Match CaseOpener duration (6 seconds)
-const WHEEL_SIZE = 450; // Increased wheel size in pixels
+const WHEEL_SIZE = 600; // Make wheel even larger
 
 const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onNewUnbox }) => {
   // State
@@ -114,7 +148,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
           .finally(() => setIsLoading(false));
   }, []);
 
-  // Fetch case details
+  // Fetch case details and add weights
   useEffect(() => {
       if (!selectedCaseId) {
           setCurrentCaseData(null);
@@ -134,9 +168,19 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
               if (!data || !Array.isArray(data.items)) {
                    throw new Error("Invalid case data received.");
               }
-              setCurrentCaseData(data);
+              const itemsWithWeight = data.items.map(item => ({
+                  ...item,
+                  weight: getItemWeight(item.color)
+              }));
+
+              // Shuffle the items array (Fisher-Yates algorithm)
+              for (let i = itemsWithWeight.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [itemsWithWeight[i], itemsWithWeight[j]] = [itemsWithWeight[j], itemsWithWeight[i]];
+              }
+
+              setCurrentCaseData({ ...data, items: itemsWithWeight }); // Set shuffled items
               setWonItem(null);
-              // Reset wheel rotation visually when case changes
               if (wheelRef.current) {
                   wheelRef.current.style.transition = 'none';
                   wheelRef.current.style.transform = 'rotate(0deg)';
@@ -160,25 +204,19 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
   // Get random item based on weight
   const getRandomItem = (): CaseItem | null => {
       if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
-      const rarityWeights: { [colorValue: string]: number } = {
-          [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,
-          [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  [RARITY_COLORS[3]?.value ?? '#8847ff']: 10,
-          [RARITY_COLORS[4]?.value ?? '#d32ce6']: 5,   [RARITY_COLORS[5]?.value ?? '#eb4b4b']: 2,
-          [RARITY_COLORS[6]?.value ?? '#ffd700']: 1,
-      };
-      const weightedList: CaseItem[] = [];
-      currentCaseData.items.forEach(item => {
-          const weight = rarityWeights[item.color] || 1;
-          for (let i = 0; i < weight; i++) weightedList.push(item);
-      });
-      if (weightedList.length === 0) return currentCaseData.items[0] ?? null;
-      const randomIndex = Math.floor(Math.random() * weightedList.length);
-      return weightedList[randomIndex] ?? null;
+      const totalWeight = currentCaseData.items.reduce((sum, item) => sum + (item.weight ?? 1), 0);
+       if (totalWeight <= 0) return currentCaseData.items[0] ?? null;
+      let randomNum = Math.random() * totalWeight;
+      for (const item of currentCaseData.items) {
+          if (randomNum < (item.weight ?? 1)) return item;
+          randomNum -= (item.weight ?? 1);
+      }
+      return currentCaseData.items[currentCaseData.items.length - 1] ?? null;
   };
 
   // Handle Spin Action
   const handleSpin = () => {
-    if (!currentCaseData || currentCaseData.items.length === 0 || isSpinning) return;
+    if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0 || isSpinning) return;
 
     // Stop previous sounds
     if (itemAudioRef.current) { itemAudioRef.current.pause(); itemAudioRef.current = null; }
@@ -195,14 +233,14 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         newCaseAudio.volume = volume;
         caseAudioRef.current = newCaseAudio;
         newCaseAudio.play().catch(e => { console.error("Error playing case sound:", e); caseAudioRef.current = null; });
-        newCaseAudio.onended = () => { caseAudioRef.current = null; }; // Clear ref on end
+        newCaseAudio.onended = () => { caseAudioRef.current = null; };
     } catch (e) { console.error("Error creating case audio:", e); caseAudioRef.current = null; }
 
     // Reset rotation visually before animation
     if (wheelRef.current) {
         wheelRef.current.style.transition = 'none';
-        wheelRef.current.style.transform = `rotate(${targetRotation}deg)`; // Start from current visual rotation
-        void wheelRef.current.offsetWidth; // Force reflow
+        wheelRef.current.style.transform = `rotate(${targetRotation}deg)`;
+        void wheelRef.current.offsetWidth;
     }
 
     const winningItem = getRandomItem();
@@ -210,38 +248,59 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         setError("Could not determine winning item."); setIsSpinning(false); return;
     }
 
-    // Calculate rotation
-    const numItems = currentCaseData.items.length;
-    const anglePerSegment = 360 / numItems;
-    const winningItemIndex = currentCaseData.items.findIndex(item => item.name === winningItem.name && item.color === winningItem.color);
+    // Calculate Rotation based on Weighted Segments
+    const totalWeight = currentCaseData.items.reduce((sum, item) => sum + (item.weight ?? 1), 0);
+    let cumulativeAngle = 0;
+    let winningSegmentStartAngle = 0;
+    let winningSegmentAngleSpan = 0;
 
-    let finalRotation = targetRotation; // Initialize with current rotation
-
-    if (winningItemIndex === -1) {
-        console.warn("Could not precisely find winning item index, using first match.");
-        const fallbackIndex = currentCaseData.items.findIndex(item => item.name === winningItem.name);
-        if (fallbackIndex === -1) {
-             setError("Could not find winning item index."); setIsSpinning(false); return;
+    for (let i = 0; i < currentCaseData.items.length; i++) {
+        const item = currentCaseData.items[i];
+        const weight = item?.weight ?? 1;
+        const angleSpan = (weight / totalWeight) * 360;
+        if (item && item.name === winningItem.name && item.color === winningItem.color) {
+            winningSegmentStartAngle = cumulativeAngle;
+            winningSegmentAngleSpan = angleSpan;
+            break;
         }
-         const targetAngle = -(fallbackIndex * anglePerSegment + anglePerSegment / 2);
-         const fullSpins = 5;
-         const currentRotation = targetRotation;
-         const rotationDifference = (360 * fullSpins + targetAngle) - (currentRotation % 360);
-         finalRotation = currentRotation + rotationDifference;
-    } else {
-        const targetAngle = -(winningItemIndex * anglePerSegment + anglePerSegment / 2);
-        const fullSpins = 5;
-        const currentRotation = targetRotation;
-        const rotationDifference = (360 * fullSpins + targetAngle) - (currentRotation % 360);
-        finalRotation = currentRotation + rotationDifference;
+        cumulativeAngle += angleSpan;
     }
 
-    setTargetRotation(finalRotation); // Store the final absolute rotation
+     if (winningSegmentAngleSpan <= 0) {
+         console.warn("Could not find exact winning segment, using first match by name.");
+         let foundFallback = false;
+         cumulativeAngle = 0;
+         for (let i = 0; i < currentCaseData.items.length; i++) {
+             const item = currentCaseData.items[i];
+             const weight = item?.weight ?? 1;
+             const angleSpan = (weight / totalWeight) * 360;
+             if (item && item.name === winningItem.name) {
+                 winningSegmentStartAngle = cumulativeAngle;
+                 winningSegmentAngleSpan = angleSpan;
+                 foundFallback = true;
+                 break;
+             }
+             cumulativeAngle += angleSpan;
+         }
+         if (!foundFallback) {
+             setError("Could not calculate winning angle."); setIsSpinning(false); return;
+         }
+     }
+
+    const targetAngle = -(winningSegmentStartAngle + winningSegmentAngleSpan / 2);
+    const fullSpins = 5;
+    const currentRotation = targetRotation;
+    const randomOffset = (Math.random() - 0.5) * (winningSegmentAngleSpan * 0.8);
+    const finalTargetAngle = targetAngle + randomOffset;
+    const rotationDifference = (360 * fullSpins + finalTargetAngle) - (currentRotation % 360);
+    const finalRotation = currentRotation + rotationDifference;
+
+    setTargetRotation(finalRotation);
 
     // Apply transition and rotation
     if (wheelRef.current) {
         wheelRef.current.style.transition = `transform ${SPIN_DURATION_WHEEL}ms cubic-bezier(0.25, 0.1, 0.25, 1)`;
-        wheelRef.current.style.transform = `rotate(${finalRotation}deg)`; // Apply the calculated final rotation
+        wheelRef.current.style.transform = `rotate(${finalRotation}deg)`;
     }
 
     // Set timeout for results
@@ -251,10 +310,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         setIsSpinning(false);
         console.log("Wheel stopped. Won:", winningItem);
 
-        // Stop case sound if still playing
         if (caseAudioRef.current) { caseAudioRef.current.pause(); caseAudioRef.current = null; }
 
-        // Play item sound
         if (winningItem.sound_url) {
             try {
                 const backendOrigin = 'http://localhost:3001';
@@ -269,28 +326,45 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     }, SPIN_DURATION_WHEEL);
   };
 
-  // Helper to calculate position and rotation for item text
-  const getItemStyle = (index: number, numItems: number): React.CSSProperties => {
-    const anglePerSegment = 360 / numItems;
-    const itemAngle = index * anglePerSegment + anglePerSegment / 2; // Angle to the center of the segment
-    const radius = WHEEL_SIZE * 0.38; // Distance from center (adjust as needed)
+  // Helper to calculate position and rotation for item text (Tangential Rotation)
+  const getItemStyle = (index: number, items: CaseItem[]): React.CSSProperties => {
+    if (!items || index < 0 || index >= items.length || !items[index]) {
+        return {};
+    }
+    const totalWeight = items.reduce((sum, item) => sum + (item?.weight ?? 1), 0);
+    if (totalWeight <= 0) return {};
 
-    // Calculate position using trigonometry (0 degrees is top)
+    let cumulativeAngle = 0;
+    for (let i = 0; i < index; i++) {
+        const item = items[i];
+        if (item) {
+            cumulativeAngle += ((item.weight ?? 1) / totalWeight) * 360;
+        }
+    }
+
+    const currentItem = items[index];
+    const currentItemWeight = currentItem.weight ?? 1;
+    const angleSpan = (currentItemWeight / totalWeight) * 360;
+    const itemAngle = cumulativeAngle + angleSpan / 2; // Angle to the center of the segment
+
+    const radius = WHEEL_SIZE * 0.38; // Adjust distance from center
     const angleRad = itemAngle * Math.PI / 180;
-    // Position is relative to the center (50%, 50%) of the parent (.wheel-graphic)
     const x = 50 + (radius / (WHEEL_SIZE / 100)) * Math.sin(angleRad);
     const y = 50 - (radius / (WHEEL_SIZE / 100)) * Math.cos(angleRad);
 
-    // Rotate text to be perpendicular to the radius line (tangential)
-    const textRotation = itemAngle + 90; // Add 90 degrees
+    // Rotate text container to align tangentially
+    const textRotation = itemAngle + 90;
 
     return {
         position: 'absolute',
         left: `${x}%`,
         top: `${y}%`,
-        transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center element and rotate
-        width: 'auto', // Adjust width if needed
+        transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center element and rotate container
+        width: 'auto',
         textAlign: 'center',
+        // Apply background via CSS class '.segment-name'
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none', // Prevent text from interfering with clicks
     };
   };
 
@@ -335,23 +409,22 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                   <div
                       ref={wheelRef}
                       className="wheel-graphic"
-                      // Apply conic gradient background here
                       style={{
-                          background: generateConicGradient(currentCaseData.items.length),
-                          // Rotation transform is applied dynamically in handleSpin
+                          background: generateConicGradient(currentCaseData.items), // Use weighted gradient
                       }}
                   >
-                      {/* Background Segment Layer REMOVED */}
-
                       {/* Item Text Layer */}
                       <div className="wheel-item-texts">
                           {currentCaseData.items.map((item, index) => (
-                              <div key={`item-${index}`} className="wheel-item-text" style={getItemStyle(index, currentCaseData.items.length)}>
-                                  {/* Display only the name */}
-                                  <span className="segment-name" style={{ color: item.color }}>
-                                      {item.name}
-                                  </span>
-                              </div>
+                              item ? (
+                                  // Apply style directly to the container div
+                                  <div key={`item-${index}`} className="wheel-item-text" style={getItemStyle(index, currentCaseData.items)}>
+                                      {/* Text itself doesn't need extra span or style now */}
+                                      <span className="segment-name" style={{ color: item.color }}>
+                                          {item.name}
+                                      </span>
+                                  </div>
+                              ) : null
                           ))}
                       </div>
                   </div>

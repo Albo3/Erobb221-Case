@@ -6,8 +6,8 @@
 
 .wheel-visual-container {
   position: relative;
-  width: 450px;
-  height: 450px;
+  width: 600px; /* Match JS constant */
+  height: 600px; /* Match JS constant */
   margin: 30px auto;
   /* overflow: hidden; */ /* Allow marker to potentially sit slightly outside */
 }
@@ -69,11 +69,18 @@
 }
 
 .segment-name {
-  font-size: 0.9em; /* Slightly larger text */
+  /* Styles for the inner span containing the text */
+  display: inline-block; /* Needed for background and padding */
+  padding: 2px 5px;
+  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent dark background */
+  border-radius: 3px;
+  font-size: 0.9em;
   font-weight: bold;
   /* Color is applied inline based on item.color */
-  word-break: break-word; /* Wrap long names */
+  word-break: break-word;
   line-height: 1.1;
+  /* Ensure text shadow is still visible */
+  text-shadow: 1px 1px 0 var(--border-dark);
 }
 
 
