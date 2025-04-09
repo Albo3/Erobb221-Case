@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import StyledButton from './StyledButton';
+import { getApiUrl } from '../config'; // Import the helper
 import './WheelSpinner.css';
 import '../styles/style.css';
 import './CaseOpener.css'; // For grid styles
@@ -125,7 +126,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
   // Fetch available cases
   useEffect(() => {
       setIsLoading(true);
-      fetch('http://localhost:3001/api/cases')
+      fetch(getApiUrl('/api/cases')) // Use helper
           .then(response => {
               if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
               return response.json();
@@ -156,7 +157,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
       }
       setIsLoading(true);
       setError(null);
-      fetch(`http://localhost:3001/api/cases/${selectedCaseId}`)
+      fetch(getApiUrl(`/api/cases/${selectedCaseId}`)) // Use helper
           .then(response => {
               if (!response.ok) {
                   return response.json().then(errData => { throw new Error(errData.error || `HTTP error! status: ${response.status}`); })
@@ -203,15 +204,32 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
   // Get random item based on weight
   const getRandomItem = (): CaseItem | null => {
-      if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
-      const totalWeight = currentCaseData.items.reduce((sum, item) => sum + (item.weight ?? 1), 0);
-       if (totalWeight <= 0) return currentCaseData.items[0] ?? null;
-      let randomNum = Math.random() * totalWeight;
-      for (const item of currentCaseData.items) {
-          if (randomNum < (item.weight ?? 1)) return item;
-          randomNum -= (item.weight ?? 1);
+      // Ensure we have data and items
+      if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) {
+          return null;
       }
-      return currentCaseData.items[currentCaseData.items.length - 1] ?? null;
+
+      const items = currentCaseData.items;
+      const totalWeight = items.reduce((sum, item) => sum + (item.weight ?? 1), 0);
+
+      // Handle invalid total weight or empty array explicitly
+      if (totalWeight <= 0) {
+          // Return the first item only if the array is guaranteed non-empty here
+          return items[0] ?? null; // Use nullish coalescing for extra safety
+      }
+
+      let randomNum = Math.random() * totalWeight;
+      for (const item of items) {
+          const weight = item.weight ?? 1;
+          if (randomNum < weight) {
+              return item; // item is guaranteed to be CaseItem here
+          }
+          randomNum -= weight;
+      }
+
+      // Fallback: If loop completes (e.g., due to floating point issues), return the last item.
+      // Array is guaranteed non-empty at this point.
+      return items[items.length - 1];
   };
 
   // Handle Spin Action
@@ -228,7 +246,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
     // Play case opening sound
     try {
-        const caseSoundUrl = 'http://localhost:3001/uploads/sounds/case.mp3';
+        const caseSoundUrl = getApiUrl('/uploads/sounds/case.mp3'); // Use helper
         const newCaseAudio = new Audio(caseSoundUrl);
         newCaseAudio.volume = volume;
         caseAudioRef.current = newCaseAudio;
@@ -314,8 +332,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
         if (winningItem.sound_url) {
             try {
-                const backendOrigin = 'http://localhost:3001';
-                const fullSoundUrl = backendOrigin + winningItem.sound_url;
+                // sound_url from API already includes the path, just need base
+                const fullSoundUrl = getApiUrl(winningItem.sound_url); // Use helper
                 const newItemAudio = new Audio(fullSoundUrl);
                 newItemAudio.volume = volume;
                 itemAudioRef.current = newItemAudio;
@@ -384,7 +402,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                       {wonItem.name}
                   </p>
                   {wonItem.image_url && (
-                      <img src={`http://localhost:3001${wonItem.image_url}`} alt={wonItem.name} style={{ display: 'block', width: '150px', height: '150px', objectFit: 'contain', margin: '8px auto', border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      // image_url from API already includes the path, just need base
+                      <img src={getApiUrl(wonItem.image_url)} alt={wonItem.name} style={{ display: 'block', width: '150px', height: '150px', objectFit: 'contain', margin: '8px auto', border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
                   )}
                   {wonItem.rules && (
                       <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
@@ -454,7 +473,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                       onClick={() => setSelectedCaseId(caseInfo.id.toString())}
                   >
                       {caseInfo.image_path && (
-                          <img src={`http://localhost:3001${caseInfo.image_path}`} alt={caseInfo.name} className="case-grid-item-image" loading="lazy" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                          // image_path from API already includes the path, just need base
+                          <img src={getApiUrl(caseInfo.image_path)} alt={caseInfo.name} className="case-grid-item-image" loading="lazy" onError={(e) => (e.currentTarget.style.display = 'none')} />
                       )}
                       <span className="case-grid-item-name-overlay">{caseInfo.name}</span>
                   </div>

@@ -166,7 +166,7 @@ const app = new Hono();
 // --- Middleware ---
 // CORS for API routes
 app.use('/api/*', cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'https://erobb221.live', 'https://www.erobb221.live'], // Explicitly allow dev and prod origins
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'], // Content-Type might be multipart/form-data now
 }));

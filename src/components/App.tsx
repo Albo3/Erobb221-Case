@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiUrl } from '../config';
 import CaseOpener from './CaseOpener';
 import WheelSpinner from './WheelSpinner'; // Import the new component
 import CreateCaseForm from './CreateCaseForm';
@@ -61,7 +62,7 @@ function App() {
       const passwordAttempt = window.prompt("Enter admin password:");
       if (passwordAttempt !== null) { // Check if user clicked OK (null if Cancel)
         try {
-          const response = await fetch('http://localhost:3001/api/verify-admin', {
+          const response = await fetch(getApiUrl('/api/verify-admin'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -229,7 +230,7 @@ function App() {
                           {/* Optional: Small image preview */}
                           {item.image_url && (
                               <img
-                                  src={`http://localhost:3001${item.image_url}`}
+                                  src={getApiUrl(item.image_url)}
                                   alt="" // Decorative
                                   style={{ width: '30px', height: '30px', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-dark)' }}
                                   loading="lazy"

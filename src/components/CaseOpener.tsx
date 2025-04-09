@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getApiUrl } from '../config';
 // Removed matter import
 import StyledButton from './StyledButton';
 import './CaseOpener.css';
@@ -69,7 +70,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
   // Effect to fetch the list of available cases on mount
   useEffect(() => {
       setIsLoading(true);
-      fetch('http://localhost:3001/api/cases') // Use full URL
+      fetch(getApiUrl('/api/cases'))
           .then(response => {
               if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
               return response.json();
@@ -123,7 +124,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
 
       setIsLoading(true);
       setError(null); // Clear previous errors
-      fetch(`http://localhost:3001/api/cases/${selectedCaseId}`) // Use full URL
+      fetch(getApiUrl(`/api/cases/${selectedCaseId}`))
           .then(response => {
               if (!response.ok) {
                   return response.json().then(errData => {
@@ -231,7 +232,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
 
     // Play the case opening sound
     try {
-        const caseSoundUrl = 'http://localhost:3001/uploads/sounds/case.mp3'; // Correct URL via /uploads/ route
+        const caseSoundUrl = getApiUrl('/uploads/sounds/case.mp3');
         console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
         const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
         newCaseAudio.volume = volume; // Use current volume state
@@ -315,7 +316,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       // --- Log details for debugging ---
       console.log(`[CaseOpener] Won item details:`, currentWinningItem);
       if (currentWinningItem?.image_url) {
-          console.log(`[CaseOpener] Attempting to display image from: http://localhost:3001${currentWinningItem.image_url}`);
+          console.log(`[CaseOpener] Attempting to display image from: ${getApiUrl(currentWinningItem.image_url)}`);
       } else {
           console.log(`[CaseOpener] No image_url found for won item.`);
       }
@@ -333,8 +334,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       if (currentWinningItem?.sound_url) { // Play sound associated with the WON item
           try {
               // Construct the full URL by prepending the backend origin
-              const backendOrigin = 'http://localhost:3001';
-              const fullSoundUrl = backendOrigin + currentWinningItem.sound_url;
+              const fullSoundUrl = getApiUrl(currentWinningItem.sound_url);
               console.log(`[CaseOpener] Attempting to play sound from: ${fullSoundUrl}`);
               const newAudio = new Audio(fullSoundUrl);
               newAudio.volume = volume; // Use volume state
@@ -398,7 +398,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                   {/* Display Image if URL exists */}
                   {wonItem.image_url && (
                       <img
-                          src={`http://localhost:3001${wonItem.image_url}`}
+                          src={getApiUrl(wonItem.image_url)}
                           alt={wonItem.name}
                           style={{
                               display: 'block',
@@ -449,7 +449,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                               {/* Add image if URL exists */}
                               {item.image_url && (
                                   <img
-                                      src={`http://localhost:3001${item.image_url}`}
+                                      src={getApiUrl(item.image_url)}
                                       alt={item.name}
                                       className="case-opener-item-image"
                                       // Basic error handling for image loading
@@ -497,7 +497,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                       {/* Display image if path exists */}
                       {caseInfo.image_path && (
                           <img
-                              src={`http://localhost:3001${caseInfo.image_path}`}
+                              src={getApiUrl(caseInfo.image_path)}
                               alt={caseInfo.name}
                               className="case-grid-item-image" // Add class for styling
                               loading="lazy" // Lazy load images

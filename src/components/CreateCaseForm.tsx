@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'; // Import useRef
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { getApiUrl } from '../config';
 import type { ChangeEvent, FormEvent } from 'react'; // Add FormEvent
 import StyledButton from './StyledButton';
 
@@ -101,17 +102,17 @@ function CreateCaseForm() {
         setError(null);
         try {
             // Fetch Templates
-            const templatesPromise = fetch(`http://localhost:3001/api/item-templates`)
+            const templatesPromise = fetch(getApiUrl('/api/item-templates'))
                 .then(res => { if (!res.ok) throw new Error(`Templates fetch failed: ${res.status}`); return res.json(); })
                 .then((data: ItemTemplate[]) => setAvailableTemplates(data));
 
             // Fetch Cases
-            const casesPromise = fetch(`http://localhost:3001/api/cases`)
+            const casesPromise = fetch(getApiUrl('/api/cases'))
                 .then(res => { if (!res.ok) throw new Error(`Cases fetch failed: ${res.status}`); return res.json(); })
                 .then((data: CaseInfo[]) => setAvailableCases(data));
 
             // Fetch Existing Assets (Images)
-            const assetsPromise = fetch(`http://localhost:3001/api/existing-assets`)
+            const assetsPromise = fetch(getApiUrl('/api/existing-assets'))
                 .then(res => { if (!res.ok) throw new Error(`Assets fetch failed: ${res.status}`); return res.json(); })
                 .then((data: ExistingAssets) => setExistingImagePaths(data.images || []));
 
@@ -153,7 +154,7 @@ function CreateCaseForm() {
           setIsLoadingCases(true); // Indicate loading case details
           setError(null);
           try {
-              const response = await fetch(`http://localhost:3001/api/cases/${editingCaseId}`);
+              const response = await fetch(getApiUrl(`/api/cases/${editingCaseId}`));
               if (!response.ok) {
                    let errorMsg = `HTTP error! status: ${response.status}`;
                    try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch(e){}
@@ -227,8 +228,8 @@ function CreateCaseForm() {
   const caseImagePreviewPath = useMemo(() => {
       if (clearExistingCaseImage) return null; // No preview if clearing
       if (caseImageFile) return URL.createObjectURL(caseImageFile); // Preview new file
-      if (selectedExistingCaseImagePath) return `http://localhost:3001${selectedExistingCaseImagePath}`; // Preview selected existing
-      if (editingCaseOriginalImagePath) return `http://localhost:3001${editingCaseOriginalImagePath}`; // Preview original editing image
+      if (selectedExistingCaseImagePath) return getApiUrl(selectedExistingCaseImagePath); // Preview selected existing
+      if (editingCaseOriginalImagePath) return getApiUrl(editingCaseOriginalImagePath); // Preview original editing image
       return null; // Otherwise no preview
   }, [caseImageFile, selectedExistingCaseImagePath, editingCaseOriginalImagePath, clearExistingCaseImage]);
 
@@ -339,8 +340,8 @@ function CreateCaseForm() {
 
     // Determine URL and Method
     const url = editingCaseId
-        ? `http://localhost:3001/api/cases/${editingCaseId}`
-        : 'http://localhost:3001/api/cases';
+        ? getApiUrl(`/api/cases/${editingCaseId}`)
+        : getApiUrl('/api/cases');
     const method = editingCaseId ? 'PUT' : 'POST';
 
     setIsSaving(true);
@@ -367,7 +368,7 @@ function CreateCaseForm() {
       setEditingCaseId(null); // This will trigger the useEffect to reset the form
       // Refetch case list
        setIsLoadingCases(true); // Keep loading state for cases
-       fetch(`http://localhost:3001/api/cases`)
+       fetch(getApiUrl('/api/cases'))
          .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
          .then(setAvailableCases) // Update available cases list
          .catch(err => {
@@ -398,7 +399,7 @@ function CreateCaseForm() {
       setIsSaving(true); // Use the same saving state to disable buttons
       setError(null);
 
-      fetch(`http://localhost:3001/api/cases/${editingCaseId}`, {
+      fetch(getApiUrl(`/api/cases/${editingCaseId}`), {
           method: 'DELETE',
       })
       .then(async response => {
@@ -416,7 +417,7 @@ function CreateCaseForm() {
           setEditingCaseId(null); // This will trigger the useEffect to reset the form
           // Refetch case list
           setIsLoadingCases(true);
-          fetch(`http://localhost:3001/api/cases`)
+          fetch(getApiUrl('/api/cases'))
               .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
               .then(setAvailableCases)
               .catch(err => {
