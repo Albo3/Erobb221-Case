@@ -237,15 +237,14 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
       // Fallback in case of floating point issues or unexpected scenarios
       console.warn("Random selection fallback triggered, returning last item.");
-      // Explicitly check length and return null if empty (should be unreachable)
-      if (items.length > 0) {
-          const lastItem: CaseItem | undefined = items[items.length - 1];
-          // Ensure lastItem is not undefined before returning, although logic dictates it shouldn't be
-          return lastItem ?? null;
+      // Explicitly handle potential undefined return from array access to satisfy TS
+      const lastItem = items[items.length - 1];
+      if (lastItem === undefined) {
+          // This case should be logically impossible due to checks above
+          console.error("getRandomItem fallback reached impossible state: lastItem is undefined.");
+          return null;
       }
-      // This path should be logically impossible if the function reached here
-      console.error("getRandomItem reached fallback with empty items array, this should not happen.");
-      return null;
+      return lastItem; // Now guaranteed to be CaseItem
   };
 
   // Handle Spin Action
@@ -444,16 +443,12 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                       {wonItem.name}
                   </p>
                   {wonItem.image_url && (
-                      // image_url from API already includes the path, just need base
-                      <img src={getApiUrl(wonItem.image_url)} alt={wonItem.name} style={{ display: 'block', width: '150px', height: '150px', objectFit: 'contain', margin: '8px auto', border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
-                  )}
-                  {wonItem.rules && (
-                      <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
-                          <strong>Rules:</strong><p>{wonItem.rules}</p>
-                      </div>
-                  )}
-              </div>
-          )}
+                          // image_url from API already includes the path, just need base
+                          <img src={getApiUrl(wonItem.image_url)} alt={wonItem.name} style={{ display: 'block', width: '150px', height: '150px', objectFit: 'contain', margin: '8px auto', border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      )}
+                      {/* Rules display removed */}
+                  </div>
+              )}
           {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Select a case and click "Spin Wheel"</p>}
       </div>
 
