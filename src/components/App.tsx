@@ -223,9 +223,8 @@ function App() {
         </footer>
       </div> {/* Close Centered Content Wrapper */}
 
-      {/* Absolutely Positioned Rules Panel (Left) */}
-      {/* Increased width from 350px to 400px */}
-      <div className="history-panel" style={{ position: 'absolute', top: '80px', left: '20px', width: '400px', borderRight: '1px solid var(--border-color)', paddingRight: '15px', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
+      {/* Absolutely Positioned Rules Panel (Left) - Using CSS class */}
+      <div className="rules-panel"> {/* Removed inline styles, added class */}
           <h4>Item Rules</h4>
           {currentItemRules ? (
               <p style={{ fontSize: '0.9em', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -236,9 +235,8 @@ function App() {
           )}
       </div>
 
-      {/* Absolutely Positioned History Panel (Right) */}
-      {/* Increased width from 200px to 250px */}
-      <div className="history-panel" style={{ position: 'absolute', top: '80px', right: '20px', width: '250px', borderLeft: '1px solid var(--border-color)', paddingLeft: '15px', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
+      {/* Absolutely Positioned History Panel (Right) - Using CSS class */}
+      <div className="history-panel-right"> {/* Removed inline styles, added class */}
           <h4>Unbox History</h4>
           {unboxedHistory.length === 0 ? (
               <p style={{ fontSize: '0.9em', color: 'var(--secondary-text)' }}>No items unboxed yet.</p>
