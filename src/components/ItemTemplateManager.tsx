@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ChangeEvent, FormEvent } from 'react'; // Use type-only imports
 import StyledButton from './StyledButton';
+import { getApiUrl } from '../config';
 
 // Define structure for Item Template data received from backend
 interface ItemTemplate {
@@ -42,17 +43,14 @@ function ItemTemplateManager() {
     const [selectedExistingSoundPath, setSelectedExistingSoundPath] = useState<string>('');
     const [isLoadingExistingAssets, setIsLoadingExistingAssets] = useState(true);
 
-
     // Refs for file inputs to allow resetting them
     const imageInputRef = useRef<HTMLInputElement>(null);
     const soundInputRef = useRef<HTMLInputElement>(null);
 
-
     // Function to fetch item templates
     const fetchItemTemplates = () => {
-        // setIsLoading(true); // Loading state handled by loadAllData now
         setError(null);
-        fetch('http://localhost:3001/api/item-templates')
+        fetch(getApiUrl('/api/item-templates'))
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 return response.json();
@@ -66,14 +64,12 @@ function ItemTemplateManager() {
                 setError(`Failed to load item templates: ${msg}`);
                 setTemplates([]);
             });
-            // .finally(() => setIsLoading(false)); // Handled by loadAllData
     };
 
-     // Function to fetch existing asset paths
+    // Function to fetch existing asset paths
     const fetchExistingAssets = () => {
-        // setIsLoadingExistingAssets(true); // Loading state handled by loadAllData now
         setError(null);
-        fetch('http://localhost:3001/api/existing-assets')
+        fetch(getApiUrl('/api/existing-assets'))
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 return response.json();
@@ -83,13 +79,12 @@ function ItemTemplateManager() {
                 setExistingSoundPaths(data.sounds || []);
             })
             .catch(err => {
-                 const msg = err instanceof Error ? err.message : String(err);
+                const msg = err instanceof Error ? err.message : String(err);
                 console.error("Error fetching existing assets:", err);
                 setError(`Failed to load existing assets: ${msg}`);
                 setExistingImagePaths([]);
                 setExistingSoundPaths([]);
             });
-            // .finally(() => setIsLoadingExistingAssets(false)); // Handled by loadAllData
     };
 
     // Fetch all data on mount
@@ -101,11 +96,10 @@ function ItemTemplateManager() {
             try {
                 await Promise.all([fetchItemTemplates(), fetchExistingAssets()]);
             } catch (err) {
-                 // Errors should be caught and set within individual fetch functions
-                 console.error("Error during initial data load:", err);
+                console.error("Error during initial data load:", err);
             } finally {
-                 setIsLoading(false);
-                 setIsLoadingExistingAssets(false);
+                setIsLoading(false);
+                setIsLoadingExistingAssets(false);
             }
         };
         loadAllData();
@@ -115,14 +109,15 @@ function ItemTemplateManager() {
     const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0] ?? null;
         setNewTemplateImageFile(file);
-        if (file) { // If a new file is selected, clear the existing path selection
+        if (file) {
             setSelectedExistingImagePath('');
         }
     };
+
     const handleSoundFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-         const file = event.target.files?.[0] ?? null;
+        const file = event.target.files?.[0] ?? null;
         setNewTemplateSoundFile(file);
-         if (file) { // If a new file is selected, clear the existing path selection
+        if (file) {
             setSelectedExistingSoundPath('');
         }
     };
@@ -131,20 +126,20 @@ function ItemTemplateManager() {
     const handleExistingImageChange = (event: ChangeEvent<HTMLSelectElement>) => {
         const path = event.target.value;
         setSelectedExistingImagePath(path);
-        if (path) { // If an existing path is selected, clear the file input
+        if (path) {
             setNewTemplateImageFile(null);
             if (imageInputRef.current) imageInputRef.current.value = '';
         }
     };
-     const handleExistingSoundChange = (event: ChangeEvent<HTMLSelectElement>) => {
+
+    const handleExistingSoundChange = (event: ChangeEvent<HTMLSelectElement>) => {
         const path = event.target.value;
         setSelectedExistingSoundPath(path);
-        if (path) { // If an existing path is selected, clear the file input
+        if (path) {
             setNewTemplateSoundFile(null);
             if (soundInputRef.current) soundInputRef.current.value = '';
         }
     };
-
 
     // Reset form fields
     const resetForm = () => {
@@ -155,9 +150,8 @@ function ItemTemplateManager() {
         setEditingTemplateId(null);
         setClearExistingImage(false);
         setClearExistingSound(false);
-        setSelectedExistingImagePath(''); // Reset selections
+        setSelectedExistingImagePath('');
         setSelectedExistingSoundPath('');
-        // Reset file input visually
         if (imageInputRef.current) imageInputRef.current.value = '';
         if (soundInputRef.current) soundInputRef.current.value = '';
     };
@@ -167,10 +161,9 @@ function ItemTemplateManager() {
         setEditingTemplateId(template.id);
         setNewTemplateName(template.base_name);
         setNewTemplateRulesText(template.rules_text ?? '');
-        // Clear file/selection states initially when starting edit
         setNewTemplateImageFile(null);
         setNewTemplateSoundFile(null);
-        setSelectedExistingImagePath(''); // Don't pre-select existing path on edit start
+        setSelectedExistingImagePath('');
         setSelectedExistingSoundPath('');
         setClearExistingImage(false);
         setClearExistingSound(false);
@@ -190,55 +183,50 @@ function ItemTemplateManager() {
         const formData = new FormData();
         formData.append('base_name', newTemplateName.trim());
 
-        // Append image: either new file or selected existing path
         if (newTemplateImageFile) {
             formData.append('image_file', newTemplateImageFile);
         } else if (selectedExistingImagePath) {
             formData.append('existing_image_path', selectedExistingImagePath);
         }
 
-        // Append sound: either new file or selected existing path
         if (newTemplateSoundFile) {
             formData.append('sound_file', newTemplateSoundFile);
         } else if (selectedExistingSoundPath) {
             formData.append('existing_sound_path', selectedExistingSoundPath);
         }
 
-        // Append rules text if provided
         if (newTemplateRulesText.trim()) {
             formData.append('rules_text', newTemplateRulesText.trim());
         }
 
-        // Add clear flags if editing and checked
         if (editingTemplateId !== null) {
             if (clearExistingImage) formData.append('clear_image', 'true');
             if (clearExistingSound) formData.append('clear_sound', 'true');
         }
 
-
         setIsUploading(true);
         setError(null);
 
-        // Determine URL and Method based on editing state
         const url = editingTemplateId
-            ? `http://localhost:3001/api/item-templates/${editingTemplateId}`
-            : 'http://localhost:3001/api/item-templates';
+            ? getApiUrl(`/api/item-templates/${editingTemplateId}`)
+            : getApiUrl('/api/item-templates');
         const method = editingTemplateId ? 'PUT' : 'POST';
 
         fetch(url, { method, body: formData })
             .then(async response => {
                 if (!response.ok) {
                     let errorMsg = `HTTP error! status: ${response.status}`;
-                    try { const errData = await response.json(); errorMsg = errData.error || errorMsg; }
-                    catch (e) { /* Ignore */ }
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.error || errorMsg;
+                    } catch (e) { /* Ignore */ }
                     throw new Error(errorMsg);
                 }
                 return response.json();
             })
             .then(data => {
                 alert(`Item Template "${newTemplateName}" ${editingTemplateId ? 'updated' : 'created'} successfully!`);
-                resetForm(); // Reset form fields and editing state
-                // Refetch both templates and existing assets after change
+                resetForm();
                 fetchItemTemplates();
                 fetchExistingAssets();
             })
@@ -251,27 +239,27 @@ function ItemTemplateManager() {
 
     // Determine current preview paths based on state
     const imagePreviewPath = newTemplateImageFile
-        ? URL.createObjectURL(newTemplateImageFile) // Create temporary URL for preview
+        ? URL.createObjectURL(newTemplateImageFile)
         : selectedExistingImagePath
-        ? `http://localhost:3001${selectedExistingImagePath}` // Use existing path
-        : editingTemplateId // If editing, show the original path unless cleared
+        ? getApiUrl(selectedExistingImagePath)
+        : editingTemplateId
         ? templates.find(t => t.id === editingTemplateId)?.image_path
-            ? `http://localhost:3001${templates.find(t => t.id === editingTemplateId)?.image_path}`
+            ? getApiUrl(templates.find(t => t.id === editingTemplateId)?.image_path || '')
             : null
         : null;
 
     const soundPreviewPath = newTemplateSoundFile
         ? URL.createObjectURL(newTemplateSoundFile)
         : selectedExistingSoundPath
-        ? `http://localhost:3001${selectedExistingSoundPath}`
+        ? getApiUrl(selectedExistingSoundPath)
         : editingTemplateId
         ? templates.find(t => t.id === editingTemplateId)?.sound_path
-            ? `http://localhost:3001${templates.find(t => t.id === editingTemplateId)?.sound_path}`
+            ? getApiUrl(templates.find(t => t.id === editingTemplateId)?.sound_path || '')
             : null
         : null;
 
     // Cleanup object URLs on unmount or when file changes
-     useEffect(() => {
+    useEffect(() => {
         let imageUrl = newTemplateImageFile ? URL.createObjectURL(newTemplateImageFile) : null;
         let soundUrl = newTemplateSoundFile ? URL.createObjectURL(newTemplateSoundFile) : null;
         return () => {
@@ -279,7 +267,6 @@ function ItemTemplateManager() {
             if (soundUrl) URL.revokeObjectURL(soundUrl);
         };
     }, [newTemplateImageFile, newTemplateSoundFile]);
-
 
     return (
         <div style={{ padding: '20px', border: '1px solid var(--border-color)', borderRadius: '5px' }}>
@@ -311,72 +298,97 @@ function ItemTemplateManager() {
                 {/* Image Input Section */}
                 <div style={{ marginBottom: '10px', border: '1px solid var(--border-color-2)', padding: '10px', borderRadius: '3px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Image (Optional):</label>
-                    {/* File Upload */}
                     <div style={{ marginBottom: '5px' }}>
                         <label htmlFor="templateImage" style={{ display: 'block', fontSize: '0.9em', marginBottom: '3px' }}>Upload New:</label>
                         <input
-                            type="file" id="templateImage" accept="image/*"
-                            onChange={handleImageFileChange} ref={imageInputRef}
-                            className="cs-input" style={{ width: '100%' }}
-                            disabled={isUploading || clearExistingImage} // Disable if clearing
+                            type="file"
+                            id="templateImage"
+                            accept="image/*"
+                            onChange={handleImageFileChange}
+                            ref={imageInputRef}
+                            className="cs-input"
+                            style={{ width: '100%' }}
+                            disabled={isUploading || clearExistingImage}
                         />
                     </div>
-                     {/* OR Separator */}
-                     <div style={{ textAlign: 'center', margin: '5px 0', fontSize: '0.9em', color: 'var(--secondary-text)' }}>OR</div>
-                    {/* Existing Path Selection */}
+                    <div style={{ textAlign: 'center', margin: '5px 0', fontSize: '0.9em', color: 'var(--secondary-text)' }}>OR</div>
                     <div style={{ marginBottom: '5px' }}>
-                         <label htmlFor="existingImageSelect" style={{ display: 'block', fontSize: '0.9em', marginBottom: '3px' }}>Select Existing:</label>
-                         <select
+                        <label htmlFor="existingImageSelect" style={{ display: 'block', fontSize: '0.9em', marginBottom: '3px' }}>Select Existing:</label>
+                        <select
                             id="existingImageSelect"
                             value={selectedExistingImagePath}
                             onChange={handleExistingImageChange}
-                            disabled={isLoadingExistingAssets || isUploading || !!newTemplateImageFile || clearExistingImage} // Disable if loading, uploading, new file selected, or clearing
-                            className="cs-input" style={{ width: '100%' }}
-                         >
-                             <option value="">-- Select Existing Image --</option>
-                             {existingImagePaths.map(path => {
+                            disabled={isLoadingExistingAssets || isUploading || !!newTemplateImageFile || clearExistingImage}
+                            className="cs-input"
+                            style={{ width: '100%' }}
+                        >
+                            <option value="">-- Select Existing Image --</option>
+                            {existingImagePaths.map(path => {
                                 const fullFilename = path.split('/').pop() || '';
                                 const firstHyphenIndex = fullFilename.indexOf('-');
                                 const displayName = firstHyphenIndex !== -1 ? fullFilename.substring(firstHyphenIndex + 1) : fullFilename;
                                 return <option key={path} value={path}>{displayName}</option>;
-                             })}
-                         </select>
+                            })}
+                        </select>
                     </div>
-                     {/* Clear Option (only when editing and image exists) */}
-                     {editingTemplateId !== null && templates.find(t => t.id === editingTemplateId)?.image_path && (
+                    {editingTemplateId !== null && templates.find(t => t.id === editingTemplateId)?.image_path && (
                         <div style={{ fontSize: '0.8em', marginTop: '5px' }}>
-                            <input type="checkbox" id="clearImage" checked={clearExistingImage} onChange={(e) => { setClearExistingImage(e.target.checked); if (e.target.checked) { setNewTemplateImageFile(null); setSelectedExistingImagePath(''); if (imageInputRef.current) imageInputRef.current.value = ''; } }} />
+                            <input
+                                type="checkbox"
+                                id="clearImage"
+                                checked={clearExistingImage}
+                                onChange={(e) => {
+                                    setClearExistingImage(e.target.checked);
+                                    if (e.target.checked) {
+                                        setNewTemplateImageFile(null);
+                                        setSelectedExistingImagePath('');
+                                        if (imageInputRef.current) imageInputRef.current.value = '';
+                                    }
+                                }}
+                            />
                             <label htmlFor="clearImage" style={{ marginLeft: '4px' }}>Remove/Clear Image</label>
                         </div>
                     )}
-                     {/* Preview */}
-                     {imagePreviewPath && !clearExistingImage && <img src={imagePreviewPath} alt="Preview" style={{ height: '40px', width: 'auto', border: '1px solid var(--border-color)', marginTop: '5px' }} />}
+                    {imagePreviewPath && !clearExistingImage && (
+                        <img
+                            src={imagePreviewPath}
+                            alt="Preview"
+                            style={{
+                                height: '40px',
+                                width: 'auto',
+                                border: '1px solid var(--border-color)',
+                                marginTop: '5px'
+                            }}
+                        />
+                    )}
                 </div>
 
-                 {/* Sound Input Section */}
+                {/* Sound Input Section */}
                 <div style={{ marginBottom: '10px', border: '1px solid var(--border-color-2)', padding: '10px', borderRadius: '3px' }}>
-                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Sound (Optional):</label>
-                     {/* File Upload */}
-                     <div style={{ marginBottom: '5px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Sound (Optional):</label>
+                    <div style={{ marginBottom: '5px' }}>
                         <label htmlFor="templateSound" style={{ display: 'block', fontSize: '0.9em', marginBottom: '3px' }}>Upload New:</label>
                         <input
-                            type="file" id="templateSound" accept="audio/*"
-                            onChange={handleSoundFileChange} ref={soundInputRef}
-                            className="cs-input" style={{ width: '100%' }}
-                            disabled={isUploading || clearExistingSound} // Disable if clearing
+                            type="file"
+                            id="templateSound"
+                            accept="audio/*"
+                            onChange={handleSoundFileChange}
+                            ref={soundInputRef}
+                            className="cs-input"
+                            style={{ width: '100%' }}
+                            disabled={isUploading || clearExistingSound}
                         />
                     </div>
-                     {/* OR Separator */}
-                     <div style={{ textAlign: 'center', margin: '5px 0', fontSize: '0.9em', color: 'var(--secondary-text)' }}>OR</div>
-                     {/* Existing Path Selection */}
-                     <div style={{ marginBottom: '5px' }}>
+                    <div style={{ textAlign: 'center', margin: '5px 0', fontSize: '0.9em', color: 'var(--secondary-text)' }}>OR</div>
+                    <div style={{ marginBottom: '5px' }}>
                         <label htmlFor="existingSoundSelect" style={{ display: 'block', fontSize: '0.9em', marginBottom: '3px' }}>Select Existing:</label>
                         <select
                             id="existingSoundSelect"
                             value={selectedExistingSoundPath}
                             onChange={handleExistingSoundChange}
-                            disabled={isLoadingExistingAssets || isUploading || !!newTemplateSoundFile || clearExistingSound} // Disable if loading, uploading, new file selected, or clearing
-                            className="cs-input" style={{ width: '100%' }}
+                            disabled={isLoadingExistingAssets || isUploading || !!newTemplateSoundFile || clearExistingSound}
+                            className="cs-input"
+                            style={{ width: '100%' }}
                         >
                             <option value="">-- Select Existing Sound --</option>
                             {existingSoundPaths.map(path => {
@@ -387,15 +399,29 @@ function ItemTemplateManager() {
                             })}
                         </select>
                     </div>
-                     {/* Clear Option (only when editing and sound exists) */}
-                     {editingTemplateId !== null && templates.find(t => t.id === editingTemplateId)?.sound_path && (
+                    {editingTemplateId !== null && templates.find(t => t.id === editingTemplateId)?.sound_path && (
                         <div style={{ fontSize: '0.8em', marginTop: '5px' }}>
-                            <input type="checkbox" id="clearSound" checked={clearExistingSound} onChange={(e) => { setClearExistingSound(e.target.checked); if (e.target.checked) { setNewTemplateSoundFile(null); setSelectedExistingSoundPath(''); if (soundInputRef.current) soundInputRef.current.value = ''; } }} />
+                            <input
+                                type="checkbox"
+                                id="clearSound"
+                                checked={clearExistingSound}
+                                onChange={(e) => {
+                                    setClearExistingSound(e.target.checked);
+                                    if (e.target.checked) {
+                                        setNewTemplateSoundFile(null);
+                                        setSelectedExistingSoundPath('');
+                                        if (soundInputRef.current) soundInputRef.current.value = '';
+                                    }
+                                }}
+                            />
                             <label htmlFor="clearSound" style={{ marginLeft: '4px' }}>Remove/Clear Sound</label>
                         </div>
                     )}
-                     {/* Preview */}
-                     {soundPreviewPath && !clearExistingSound && <audio controls src={soundPreviewPath} style={{ height: '30px', marginTop: '5px' }}><a href={soundPreviewPath}>Play Sound</a></audio>}
+                    {soundPreviewPath && !clearExistingSound && (
+                        <audio controls src={soundPreviewPath} style={{ height: '30px', marginTop: '5px' }}>
+                            <a href={soundPreviewPath}>Play Sound</a>
+                        </audio>
+                    )}
                 </div>
 
                 {/* Rules Text Input */}
@@ -416,9 +442,9 @@ function ItemTemplateManager() {
                     {isUploading ? (editingTemplateId ? 'Updating...' : 'Creating...') : (editingTemplateId ? 'Update Template' : 'Create Template')}
                 </StyledButton>
                 {editingTemplateId !== null && (
-                     <StyledButton type="button" onClick={resetForm} disabled={isUploading} style={{ marginTop: '10px', marginLeft: '10px' }}>
-                         Cancel Edit
-                     </StyledButton>
+                    <StyledButton type="button" onClick={resetForm} disabled={isUploading} style={{ marginTop: '10px', marginLeft: '10px' }}>
+                        Cancel Edit
+                    </StyledButton>
                 )}
             </form>
 

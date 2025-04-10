@@ -124,6 +124,44 @@ header h1 {
      /* border inherited, but border-bottom overrides */
   }
 
+  /* Side Panels */
+  .rules-panel,
+  .history-panel-right {
+    /* Common styles moved from App.tsx inline styles */
+    position: absolute;
+    top: 80px; /* Adjust based on header height */
+    max-height: calc(100vh - 120px); /* Adjust based on header/footer/padding */
+    overflow-y: auto;
+    /* Inherit background/padding/border/shadow from .history-panel base */
+    background-color: rgba(62, 70, 55, 0.9); /* Derived from --secondary-bg */
+    padding: 10px; /* Keep specific padding */
+    border: 1px solid var(--border-dark); /* Add base border */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3); /* Add shadow */
+  }
+
+  .rules-panel {
+    /* Specific styles for left panel */
+    left: 20px;
+    width: 400px; /* Keep the wider width */
+    border-right: 1px solid var(--border-color);
+    padding-right: 15px;
+    border-left: 1px solid var(--border-dark); /* Add left border */
+    border-top: 1px solid var(--border-dark); /* Add top border */
+    border-bottom: 1px solid var(--border-dark); /* Add bottom border */
+  }
+
+  .history-panel-right {
+     /* Specific styles for right panel */
+     right: 20px;
+     width: 250px; /* Keep original width */
+     border-left: 1px solid var(--border-color);
+     padding-left: 15px;
+     border-right: 1px solid var(--border-dark); /* Add right border */
+     border-top: 1px solid var(--border-dark); /* Add top border */
+     border-bottom: 1px solid var(--border-dark); /* Add bottom border */
+  }
+
+
   /* Scrollbars */
 
   ::-webkit-scrollbar {
@@ -232,6 +270,18 @@ header h1 {
       color: var(--disabled-text);
       text-shadow: var(--disabled-text-shadow) 1px 1px;
       pointer-events: none;
+    }
+  }
+
+  /* Media Query for smaller screens */
+  @media (max-width: 1550px) { /* Adjust this breakpoint as needed */
+    .rules-panel,
+    .history-panel-right {
+      display: none; /* Hide panels on smaller screens */
+    }
+    .main-content-area {
+      margin: 0 20px; /* Add some margin when panels are hidden */
+      max-width: none; /* Allow main content to take more space */
     }
   }
 

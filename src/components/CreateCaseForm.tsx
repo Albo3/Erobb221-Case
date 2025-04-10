@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'; // Import useRef
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { getApiUrl } from '../config';
 import type { ChangeEvent, FormEvent } from 'react'; // Add FormEvent
 import StyledButton from './StyledButton';
 
@@ -22,9 +23,10 @@ interface FullCaseData {
     items: Array<{
         item_template_id: number;
         override_name: string | null;
-        color: string;
+        percentage_chance: number; // Updated field
+        display_color: string;     // Updated field
     }>;
-    image_path: string | null; // Add image_path to the case data
+    image_path: string | null;
 }
 
 // Define structure for existing asset paths (only need images for cases)
@@ -38,38 +40,20 @@ interface CaseItemState {
   id: number; // For React key prop (client-side only)
   item_template_id: number | null; // ID of the selected template
   override_name: string; // Optional name override for this instance
-  color: string; // Color specific to this item in this case
+  percentage_chance: number; // New field
+  display_color: string;     // New field
+  isPercentageLocked: boolean; // Added for locking percentage
 }
 
-// Define standard CS:GO rarity colors and names (remains the same)
-const RARITY_COLORS = [
-    { name: 'Consumer Grade', value: '#b0c3d9' },
-    { name: 'Industrial Grade', value: '#5e98d9' },
-    { name: 'Mil-Spec', value: '#4b69ff' },
-    { name: 'Restricted', value: '#8847ff' },
-    { name: 'Classified', value: '#d32ce6' },
-    { name: 'Covert', value: '#eb4b4b' },
-    { name: 'Exceedingly Rare', value: '#ffd700' },
-];
-
-// Define weights based on rarity colors (copied from CaseOpener for consistency)
-const rarityWeights: { [colorValue: string]: number } = {
-    [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, // Consumer Grade
-    [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,  // Industrial Grade
-    [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  // Mil-Spec
-    [RARITY_COLORS[3]?.value ?? '#8847ff']: 10,  // Restricted
-    [RARITY_COLORS[4]?.value ?? '#d32ce6']: 5,   // Classified
-    [RARITY_COLORS[5]?.value ?? '#eb4b4b']: 2,   // Covert
-    [RARITY_COLORS[6]?.value ?? '#ffd700']: 1,   // Exceedingly Rare
-};
-
+// Default color for new items
+const DEFAULT_ITEM_COLOR = '#808080'; // Grey
 
 function CreateCaseForm() {
   // Form state
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemState[]>([
-    { id: Date.now(), item_template_id: null, override_name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' },
+    { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }, // Initialize lock state
   ]);
 
   // State for available data
@@ -101,17 +85,17 @@ function CreateCaseForm() {
         setError(null);
         try {
             // Fetch Templates
-            const templatesPromise = fetch(`http://localhost:3001/api/item-templates`)
+            const templatesPromise = fetch(getApiUrl('/api/item-templates'))
                 .then(res => { if (!res.ok) throw new Error(`Templates fetch failed: ${res.status}`); return res.json(); })
                 .then((data: ItemTemplate[]) => setAvailableTemplates(data));
 
             // Fetch Cases
-            const casesPromise = fetch(`http://localhost:3001/api/cases`)
+            const casesPromise = fetch(getApiUrl('/api/cases'))
                 .then(res => { if (!res.ok) throw new Error(`Cases fetch failed: ${res.status}`); return res.json(); })
                 .then((data: CaseInfo[]) => setAvailableCases(data));
 
             // Fetch Existing Assets (Images)
-            const assetsPromise = fetch(`http://localhost:3001/api/existing-assets`)
+            const assetsPromise = fetch(getApiUrl('/api/existing-assets'))
                 .then(res => { if (!res.ok) throw new Error(`Assets fetch failed: ${res.status}`); return res.json(); })
                 .then((data: ExistingAssets) => setExistingImagePaths(data.images || []));
 
@@ -138,7 +122,7 @@ function CreateCaseForm() {
           // Reset form if we stop editing (or are creating new)
           setCaseName('');
           setCaseDescription('');
-          setItems([{ id: Date.now(), item_template_id: null, override_name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' }]);
+          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]); // Reset lock state too
           // Reset image state as well
           setCaseImageFile(null);
           setSelectedExistingCaseImagePath('');
@@ -153,7 +137,7 @@ function CreateCaseForm() {
           setIsLoadingCases(true); // Indicate loading case details
           setError(null);
           try {
-              const response = await fetch(`http://localhost:3001/api/cases/${editingCaseId}`);
+              const response = await fetch(getApiUrl(`/api/cases/${editingCaseId}`));
               if (!response.ok) {
                    let errorMsg = `HTTP error! status: ${response.status}`;
                    try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch(e){}
@@ -175,7 +159,9 @@ function CreateCaseForm() {
                   id: Math.random(), // Generate temporary client-side ID for React key
                   item_template_id: item.item_template_id,
                   override_name: item.override_name ?? '',
-                  color: item.color,
+                  percentage_chance: item.percentage_chance,
+                  display_color: item.display_color,
+                  isPercentageLocked: false, // Default to unlocked when loading existing case
               })));
 
           } catch (err) {
@@ -227,8 +213,8 @@ function CreateCaseForm() {
   const caseImagePreviewPath = useMemo(() => {
       if (clearExistingCaseImage) return null; // No preview if clearing
       if (caseImageFile) return URL.createObjectURL(caseImageFile); // Preview new file
-      if (selectedExistingCaseImagePath) return `http://localhost:3001${selectedExistingCaseImagePath}`; // Preview selected existing
-      if (editingCaseOriginalImagePath) return `http://localhost:3001${editingCaseOriginalImagePath}`; // Preview original editing image
+      if (selectedExistingCaseImagePath) return getApiUrl(selectedExistingCaseImagePath); // Preview selected existing
+      if (editingCaseOriginalImagePath) return getApiUrl(editingCaseOriginalImagePath); // Preview original editing image
       return null; // Otherwise no preview
   }, [caseImageFile, selectedExistingCaseImagePath, editingCaseOriginalImagePath, clearExistingCaseImage]);
 
@@ -242,50 +228,166 @@ function CreateCaseForm() {
   // --- End Image Handling ---
 
 
-  // Calculate odds based on item counts per rarity (remains the same)
-  const itemCounts = useMemo(() => {
-      const counts: { [color: string]: number } = {};
-      for (const item of items) {
-          counts[item.color] = (counts[item.color] || 0) + 1;
-      }
-      return counts;
+  // Calculate total percentage chance
+  const totalPercentage = useMemo(() => {
+      return items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
   }, [items]);
-
-  // Calculate total weight based on current items and their colors
-  const totalWeight = useMemo(() => {
-      return items.reduce((sum, item) => {
-          const weight = rarityWeights[item.color] || 1; // Default weight if color somehow not found
-          return sum + weight;
-      }, 0);
-  }, [items]); // Recalculate when items array changes
 
   const totalItems = useMemo(() => items.length, [items]);
 
-  // Function to handle changes in item inputs (template selection, override name, color)
+  // Function to handle changes in item inputs (template selection, override name, percentage, color)
   const handleItemChange = (
       index: number,
       field: keyof Omit<CaseItemState, 'id'>,
-      value: string | number | null
+      value: string | number | boolean | null // Value can be boolean for checkbox
     ) => {
     const newItems = [...items];
     const itemToUpdate = newItems[index];
-    if (itemToUpdate) {
-        if (field === 'item_template_id') {
+
+    if (!itemToUpdate) return; // Should not happen, but safety check
+
+    switch (field) {
+        case 'item_template_id':
             const numValue = (value === '' || value === null) ? null : Number(value);
-            itemToUpdate[field] = (numValue !== null && isNaN(numValue)) ? null : numValue;
-        } else { // override_name or color
-             (itemToUpdate as any)[field] = value as string;
-        }
-        setItems(newItems);
+            itemToUpdate.item_template_id = (numValue !== null && isNaN(numValue)) ? null : numValue;
+            break;
+        case 'override_name':
+            itemToUpdate.override_name = typeof value === 'string' ? value : '';
+            break;
+        case 'percentage_chance':
+            const percValue = typeof value === 'string' ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+            itemToUpdate.percentage_chance = isNaN(percValue) ? 0 : Math.max(0, percValue); // Ensure non-negative, default to 0 if invalid
+            break;
+        case 'display_color':
+            itemToUpdate.display_color = typeof value === 'string' ? value : DEFAULT_ITEM_COLOR;
+            break;
+        case 'isPercentageLocked': // Handle checkbox change
+            itemToUpdate.isPercentageLocked = typeof value === 'boolean' ? value : false;
+            break;
+        default:
+            console.warn(`Unhandled field change: ${field}`);
+            return;
     }
+    setItems(newItems);
   };
+
+  // Function to normalize percentages to 100%, respecting locked items
+  const handleNormalizePercentages = () => {
+      const lockedItems = items.filter(item => item.isPercentageLocked);
+      const unlockedItems = items.filter(item => !item.isPercentageLocked);
+      const wereItemsLocked = lockedItems.length > 0; // Track if any items started as locked
+
+      if (unlockedItems.length === 0) {
+          const currentTotal = items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+          if (Math.abs(currentTotal - 100) > 0.01) {
+               alert('All items are locked, but their sum is not 100%. Please unlock items to normalize.');
+          } else {
+               alert('All items are locked and already sum to 100%. No changes made.');
+          }
+          return;
+      }
+
+      const lockedSum = lockedItems.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+
+      if (lockedSum > 100.01) { // Use tolerance
+          alert(`Sum of locked percentages (${lockedSum.toFixed(2)}%) exceeds 100%. Cannot normalize unlocked items. Please adjust locked values.`);
+          return;
+      }
+
+      const targetSumForUnlocked = 100 - lockedSum;
+      const currentUnlockedSum = unlockedItems.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+
+      let normalizedUnlockedItems: CaseItemState[];
+
+      if (currentUnlockedSum <= 0 || targetSumForUnlocked <= 0) { // Also handle case where target is 0
+          // Distribute target sum equally (or set to 0 if target is 0)
+          const equalPercentage = unlockedItems.length > 0 ? parseFloat((targetSumForUnlocked / unlockedItems.length).toFixed(2)) : 0;
+          let remainder = parseFloat((targetSumForUnlocked - (equalPercentage * unlockedItems.length)).toFixed(2));
+
+          normalizedUnlockedItems = unlockedItems.map((item, index) => ({
+              ...item,
+              percentage_chance: index === 0 ? parseFloat(Math.max(0, equalPercentage + remainder).toFixed(2)) : Math.max(0, equalPercentage), // Ensure non-negative
+          }));
+      } else {
+          // Normalize unlocked items proportionally
+          let roundedSum = 0;
+          const proportionallyNormalized = unlockedItems.map(item => {
+              // Avoid division by zero if currentUnlockedSum is 0 (though handled earlier, belt-and-suspenders)
+              const proportionalChance = (currentUnlockedSum > 0)
+                  ? (item.percentage_chance / currentUnlockedSum) * targetSumForUnlocked
+                  : 0; // Assign 0 if current sum is 0
+              const roundedChance = parseFloat(proportionalChance.toFixed(2));
+              roundedSum += roundedChance;
+              return {
+                  ...item,
+                  percentage_chance: roundedChance,
+              };
+          });
+
+          // Distribute rounding difference to the first unlocked item (simplified)
+          // The final check block below will handle ensuring the total is exactly 100.
+          const difference = parseFloat((targetSumForUnlocked - roundedSum).toFixed(2));
+          if (difference !== 0 && proportionallyNormalized.length > 0) {
+              const firstUnlocked = proportionallyNormalized[0];
+              if (firstUnlocked) { // Check existence
+                  // Add difference and clamp at 0
+                  firstUnlocked.percentage_chance = parseFloat(Math.max(0, firstUnlocked.percentage_chance + difference).toFixed(2));
+              }
+          }
+          normalizedUnlockedItems = proportionallyNormalized;
+      }
+
+      // Ensure no negative percentages after final adjustment
+      normalizedUnlockedItems = normalizedUnlockedItems.map(item => ({
+          ...item,
+          percentage_chance: Math.max(0, item.percentage_chance)
+      }));
+
+      // Combine locked and normalized unlocked items back
+      const finalItems = items.map(originalItem => {
+          if (originalItem.isPercentageLocked) {
+              return originalItem;
+          } else {
+              const normalizedItem = normalizedUnlockedItems.find(normalized => normalized.id === originalItem.id);
+              return normalizedItem || originalItem;
+          }
+      });
+
+      // Final check and alert
+      const finalSumCheck = finalItems.reduce((sum, item) => sum + item.percentage_chance, 0);
+      if (Math.abs(finalSumCheck - 100) > 0.015) {
+          console.error(`Normalization failed to sum precisely to 100%. Final sum: ${finalSumCheck.toFixed(2)}. Please check logic.`);
+          alert(`Normalization calculation resulted in a sum of ${finalSumCheck.toFixed(2)}%. Please review percentages manually.`);
+          setItems(finalItems);
+      } else {
+          // Ensure exactly 100 by adjusting the first unlocked item if needed
+          const finalDifference = 100 - finalSumCheck;
+          if (Math.abs(finalDifference) > 0.001 && unlockedItems.length > 0) {
+               const firstUnlockedIndex = finalItems.findIndex(item => !item.isPercentageLocked);
+               if (firstUnlockedIndex !== -1) {
+                   let firstItem = finalItems[firstUnlockedIndex];
+                   if (firstItem) {
+                       firstItem.percentage_chance = parseFloat(Math.max(0, firstItem.percentage_chance + finalDifference).toFixed(2));
+                   }
+               }
+          }
+          setItems(finalItems);
+          // Provide accurate alert message
+          if (wereItemsLocked) {
+              alert('Unlocked percentages normalized successfully.');
+          } else {
+              alert('All percentages normalized to sum 100%.');
+          }
+      }
+  };
+
 
   // Function to add a new empty item row
   const addItem = () => {
-    setItems([...items, { id: Date.now(), item_template_id: null, override_name: '', color: RARITY_COLORS[0]?.value ?? '#b0c3d9' }]);
+    setItems([...items, { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]); // Add lock state
   };
 
-  // Function to remove an item row (remains the same logic)
+  // Function to remove an item row
   const removeItem = (index: number) => {
     if (items.length <= 1) return;
     const newItems = items.filter((_, i) => i !== index);
@@ -299,15 +401,17 @@ function CreateCaseForm() {
       alert('Please enter a case name.');
       return;
     }
-    const validItems = items.filter(item => item.item_template_id !== null && item.color.trim());
-    if (validItems.length === 0) {
-        alert('Please add at least one item with an Item Template selected and a color.');
+    // Validate that each item has a template selected
+    const itemsWithTemplates = items.filter(item => item.item_template_id !== null);
+    if (itemsWithTemplates.length === 0) {
+        alert('Please add at least one item and select an Item Template for it.');
         return;
     }
-     if (validItems.length !== items.length) {
+    if (itemsWithTemplates.length !== items.length) {
         alert('One or more items are missing an Item Template selection. Please select a template for all items.');
         return;
     }
+    // Note: We are NOT strictly enforcing the 100% sum here based on user feedback
 
     // Prepare FormData
     const formData = new FormData();
@@ -316,11 +420,12 @@ function CreateCaseForm() {
         formData.append('description', caseDescription.trim());
     }
 
-    // Append items as JSON string
-    const itemsPayload = validItems.map(({ item_template_id, override_name, color }) => ({
-        item_template_id: item_template_id,
+    // Append items as JSON string using the new structure
+    const itemsPayload = itemsWithTemplates.map(({ item_template_id, override_name, percentage_chance, display_color }) => ({
+        item_template_id: item_template_id, // Already validated non-null
         override_name: override_name.trim() || null,
-        color: color.trim(),
+        percentage_chance: percentage_chance || 0, // Ensure it's a number, default 0
+        display_color: display_color || DEFAULT_ITEM_COLOR, // Ensure it's a string, default color
     }));
     formData.append('items', JSON.stringify(itemsPayload));
 
@@ -339,8 +444,8 @@ function CreateCaseForm() {
 
     // Determine URL and Method
     const url = editingCaseId
-        ? `http://localhost:3001/api/cases/${editingCaseId}`
-        : 'http://localhost:3001/api/cases';
+        ? getApiUrl(`/api/cases/${editingCaseId}`)
+        : getApiUrl('/api/cases');
     const method = editingCaseId ? 'PUT' : 'POST';
 
     setIsSaving(true);
@@ -367,7 +472,7 @@ function CreateCaseForm() {
       setEditingCaseId(null); // This will trigger the useEffect to reset the form
       // Refetch case list
        setIsLoadingCases(true); // Keep loading state for cases
-       fetch(`http://localhost:3001/api/cases`)
+       fetch(getApiUrl('/api/cases'))
          .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
          .then(setAvailableCases) // Update available cases list
          .catch(err => {
@@ -398,7 +503,7 @@ function CreateCaseForm() {
       setIsSaving(true); // Use the same saving state to disable buttons
       setError(null);
 
-      fetch(`http://localhost:3001/api/cases/${editingCaseId}`, {
+      fetch(getApiUrl(`/api/cases/${editingCaseId}`), {
           method: 'DELETE',
       })
       .then(async response => {
@@ -416,7 +521,7 @@ function CreateCaseForm() {
           setEditingCaseId(null); // This will trigger the useEffect to reset the form
           // Refetch case list
           setIsLoadingCases(true);
-          fetch(`http://localhost:3001/api/cases`)
+          fetch(getApiUrl('/api/cases'))
               .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
               .then(setAvailableCases)
               .catch(err => {
@@ -564,16 +669,24 @@ function CreateCaseForm() {
 
       {/* Items Section */}
       <h3>Items</h3>
+      {/* Display Total Percentage and Warning */}
+      <div style={{ marginBottom: '10px', padding: '5px', border: '1px solid var(--border-color-2)', borderRadius: '3px', backgroundColor: 'var(--background-light)' }}>
+          Total Percentage Chance: <span style={{ fontWeight: 'bold' }}>{totalPercentage.toFixed(2)}%</span>
+          {Math.abs(totalPercentage - 100) > 0.01 && ( // Allow small tolerance for display
+              <span style={{ color: 'orange', marginLeft: '10px', fontWeight: 'bold' }}> (Warning: Total does not equal 100%)</span>
+          )}
+      </div>
+
       {/* Use the general 'error' state for template loading errors too */}
       {error && <p style={{ color: 'red' }}>{error}</p>}
       {isLoadingTemplates && <p>Loading item templates...</p>}
 
       {!isLoadingTemplates && !error && items.map((item, index) => ( // Also check for error before mapping
         <React.Fragment key={item.id}>
-          {/* Item Row */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center', borderBottom: '1px dashed var(--border-color)', paddingBottom: '15px' }}>
+          {/* Item Row - Final Attempt at Compact Single Line Layout */}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', marginBottom: '15px', alignItems: 'flex-end', borderBottom: '1px dashed var(--border-color)', paddingBottom: '15px' }}> {/* Align items to bottom */}
             {/* Template Selector */}
-            <div style={{ flexBasis: '35%' }}>
+            <div style={{ flex: '3 1 0%' }}> {/* Allow more growth, shrink, zero basis */}
                  <label htmlFor={`template_select_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Item Template:</label>
                  <select
                     id={`template_select_${index}`}
@@ -582,13 +695,14 @@ function CreateCaseForm() {
                     className="cs-input"
                     required
                     disabled={isSaving}
+                    style={{ width: '100%' }} // Ensure select fills its container
                  >
                      <option value="" disabled>-- Select Template --</option>
                      {renderTemplateOptions(availableTemplates)}
                  </select>
             </div>
              {/* Override Name Input */}
-             <div style={{ flexBasis: '30%' }}>
+             <div style={{ flex: '2 1 0%' }}> {/* Allow growth, shrink, zero basis */}
                  <label htmlFor={`override_name_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Name Override (Optional):</label>
                  <input
                     type="text"
@@ -597,36 +711,58 @@ function CreateCaseForm() {
                     onChange={(e) => handleItemChange(index, 'override_name', e.target.value)}
                     placeholder="e.g., StatTrak™"
                     className="cs-input"
+                    style={{ width: '100%' }} // Ensure input fills its container
                     disabled={isSaving}
                  />
              </div>
-            {/* Color Dropdown */}
-             <div style={{ flexBasis: '25%' }}>
-                 <label htmlFor={`color_select_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Rarity/Color:</label>
-                 <select
-                    id={`color_select_${index}`}
-                    value={item.color}
-                    onChange={(e) => handleItemChange(index, 'color', e.target.value)}
-                    className="cs-input"
+            {/* Percentage Input & Lock Checkbox Group - Updated for horizontal layout */}
+            <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'flex-end', gap: '5px' }}> {/* Allow flex, align items bottom, add gap */}
+                {/* Chance Input Container */}
+                <div style={{ flexGrow: 1 }}>
+                    <label htmlFor={`percentage_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Chance (%):</label>
+                    <input
+                        type="number"
+                        id={`percentage_${index}`}
+                        value={item.percentage_chance}
+                        onChange={(e) => handleItemChange(index, 'percentage_chance', e.target.value)}
+                        min="0"
+                        step="0.01" // Allow decimals
+                        placeholder="e.g., 10.5"
+                        className="cs-input"
+                        style={{ width: '100%' }} // Input fills its container
+                        required
+                        disabled={isSaving || item.isPercentageLocked} // Disable if locked
+                    />
+                </div>
+                 {/* Lock Checkbox Container - Positioned next to input */}
+                 <div style={{ flexShrink: 0, paddingBottom: '5px' }}> {/* Prevent shrinking, add padding to align with input bottom */}
+                     <input
+                         type="checkbox"
+                         id={`lock_perc_${index}`}
+                         checked={item.isPercentageLocked}
+                         onChange={(e) => handleItemChange(index, 'isPercentageLocked', e.target.checked)}
+                         disabled={isSaving}
+                         style={{ verticalAlign: 'middle', marginRight: '3px' }}
+                     />
+                     <label htmlFor={`lock_perc_${index}`} style={{ verticalAlign: 'middle', cursor: 'pointer' }}>Lock %</label>
+                 </div>
+            </div>
+            {/* Color Picker */}
+            <div style={{ flex: '0 0 auto' }}> {/* Don't grow/shrink */}
+                 <label htmlFor={`color_picker_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Color:</label>
+                 <input
+                    type="color"
+                    id={`color_picker_${index}`}
+                    value={item.display_color}
+                    onChange={(e) => handleItemChange(index, 'display_color', e.target.value)}
+                    className="cs-input" // May need custom styling for color input
+                    style={{ padding: '2px', height: '30px', width: '40px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
                     required
                     disabled={isSaving}
-                 >
-                    {RARITY_COLORS.map(colorOption => (
-                        <option key={colorOption.value} value={colorOption.value}>
-                        {colorOption.name}
-                        </option>
-                    ))}
-                 </select>
-                 {/* Display Percentage Chance */}
-                 <span style={{ fontSize: '0.8em', marginLeft: '5px', color: 'var(--secondary-text)' }}>
-                     ({totalWeight > 0
-                         ? ((rarityWeights[item.color] || 1) / totalWeight * 100).toFixed(2)
-                         : (items.length === 1 ? '100.00' : '0.00')
-                     }%)
-                 </span>
-             </div>
+                 />
+            </div>
             {/* Remove Button */}
-            <div style={{ flexBasis: '10%', textAlign: 'right' }}>
+            <div style={{ flex: '0 0 auto', marginLeft: 'auto' }}> {/* Push to end */}
                 <StyledButton
                 onClick={() => removeItem(index)}
                 disabled={items.length <= 1 || isSaving}
@@ -643,6 +779,16 @@ function CreateCaseForm() {
       <StyledButton onClick={addItem} style={{ marginRight: '10px' }} disabled={isLoadingTemplates || isSaving}>
         Add Item Row
       </StyledButton>
+
+      {/* Normalize Button */}
+       <StyledButton
+            onClick={handleNormalizePercentages}
+            style={{ marginRight: '10px' }}
+            disabled={isLoadingTemplates || isSaving || items.length === 0}
+            // Removed invalid variant="secondary"
+        >
+            Normalize % to 100
+        </StyledButton>
 
       <StyledButton onClick={handleSaveCase} style={{ marginTop: '20px' }} disabled={isLoadingTemplates || isLoadingCases || isSaving}>
         {isSaving ? 'Saving...' : (editingCaseId ? 'Update Case' : 'Save New Case')}
