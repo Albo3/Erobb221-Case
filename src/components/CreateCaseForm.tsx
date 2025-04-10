@@ -42,6 +42,7 @@ interface CaseItemState {
   override_name: string; // Optional name override for this instance
   percentage_chance: number; // New field
   display_color: string;     // New field
+  isPercentageLocked: boolean; // Added for locking percentage
 }
 
 // Default color for new items
@@ -52,7 +53,7 @@ function CreateCaseForm() {
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemState[]>([
-    { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR },
+    { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }, // Initialize lock state
   ]);
 
   // State for available data
@@ -121,7 +122,7 @@ function CreateCaseForm() {
           // Reset form if we stop editing (or are creating new)
           setCaseName('');
           setCaseDescription('');
-          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR }]);
+          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]); // Reset lock state too
           // Reset image state as well
           setCaseImageFile(null);
           setSelectedExistingCaseImagePath('');
@@ -158,8 +159,9 @@ function CreateCaseForm() {
                   id: Math.random(), // Generate temporary client-side ID for React key
                   item_template_id: item.item_template_id,
                   override_name: item.override_name ?? '',
-                  percentage_chance: item.percentage_chance, // Use new field
-                  display_color: item.display_color,         // Use new field
+                  percentage_chance: item.percentage_chance,
+                  display_color: item.display_color,
+                  isPercentageLocked: false, // Default to unlocked when loading existing case
               })));
 
           } catch (err) {
@@ -236,8 +238,8 @@ function CreateCaseForm() {
   // Function to handle changes in item inputs (template selection, override name, percentage, color)
   const handleItemChange = (
       index: number,
-      field: keyof Omit<CaseItemState, 'id'>, // Exclude 'id' from assignable fields
-      value: string | number | null // Value can be string (name, color) or number (id, percentage)
+      field: keyof Omit<CaseItemState, 'id'>,
+      value: string | number | boolean | null // Value can be boolean for checkbox
     ) => {
     const newItems = [...items];
     const itemToUpdate = newItems[index];
@@ -259,38 +261,59 @@ function CreateCaseForm() {
         case 'display_color':
             itemToUpdate.display_color = typeof value === 'string' ? value : DEFAULT_ITEM_COLOR;
             break;
+        case 'isPercentageLocked': // Handle checkbox change
+            itemToUpdate.isPercentageLocked = typeof value === 'boolean' ? value : false;
+            break;
         default:
-            // Should not happen with TypeScript, but good practice
             console.warn(`Unhandled field change: ${field}`);
             return;
     }
     setItems(newItems);
   };
 
-  // Function to normalize percentages to 100%
+  // Function to normalize percentages to 100%, respecting locked items
   const handleNormalizePercentages = () => {
-      if (items.length === 0) return; // Nothing to normalize
+      const lockedItems = items.filter(item => item.isPercentageLocked);
+      const unlockedItems = items.filter(item => !item.isPercentageLocked);
+      const wereItemsLocked = lockedItems.length > 0; // Track if any items started as locked
 
-      const currentSum = items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+      if (unlockedItems.length === 0) {
+          const currentTotal = items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+          if (Math.abs(currentTotal - 100) > 0.01) {
+               alert('All items are locked, but their sum is not 100%. Please unlock items to normalize.');
+          } else {
+               alert('All items are locked and already sum to 100%. No changes made.');
+          }
+          return;
+      }
 
-      let normalizedItems: CaseItemState[];
+      const lockedSum = lockedItems.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
 
-      if (currentSum <= 0) {
-          // Distribute equally if sum is zero or negative
-          const equalPercentage = parseFloat((100 / items.length).toFixed(2)); // Round to 2 decimal places
-          let remainder = 100 - (equalPercentage * items.length); // Calculate remainder due to rounding
+      if (lockedSum > 100.01) { // Use tolerance
+          alert(`Sum of locked percentages (${lockedSum.toFixed(2)}%) exceeds 100%. Cannot normalize unlocked items. Please adjust locked values.`);
+          return;
+      }
 
-          normalizedItems = items.map((item, index) => ({
+      const targetSumForUnlocked = 100 - lockedSum;
+      const currentUnlockedSum = unlockedItems.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+
+      let normalizedUnlockedItems: CaseItemState[];
+
+      if (currentUnlockedSum <= 0 || targetSumForUnlocked <= 0) { // Also handle case where target is 0
+          // Distribute target sum equally (or set to 0 if target is 0)
+          const equalPercentage = unlockedItems.length > 0 ? parseFloat((targetSumForUnlocked / unlockedItems.length).toFixed(2)) : 0;
+          let remainder = parseFloat((targetSumForUnlocked - (equalPercentage * unlockedItems.length)).toFixed(2));
+
+          normalizedUnlockedItems = unlockedItems.map((item, index) => ({
               ...item,
-              // Add remainder to the first item
-              percentage_chance: index === 0 ? parseFloat((equalPercentage + remainder).toFixed(2)) : equalPercentage,
+              percentage_chance: index === 0 ? parseFloat(Math.max(0, equalPercentage + remainder).toFixed(2)) : Math.max(0, equalPercentage), // Ensure non-negative
           }));
       } else {
-          // Normalize proportionally
+          // Normalize unlocked items proportionally
           let roundedSum = 0;
-          const proportionallyNormalized = items.map(item => {
-              const proportionalChance = (item.percentage_chance / currentSum) * 100;
-              const roundedChance = parseFloat(proportionalChance.toFixed(2)); // Round to 2 decimal places
+          const proportionallyNormalized = unlockedItems.map(item => {
+              const proportionalChance = (item.percentage_chance / currentUnlockedSum) * targetSumForUnlocked;
+              const roundedChance = parseFloat(proportionalChance.toFixed(2));
               roundedSum += roundedChance;
               return {
                   ...item,
@@ -298,43 +321,75 @@ function CreateCaseForm() {
               };
           });
 
-          // Adjust for rounding errors to ensure exact 100% sum
-          const difference = parseFloat((100 - roundedSum).toFixed(2));
-          // Add safety check before accessing index 0
-          if (difference !== 0 && proportionallyNormalized.length > 0 && proportionallyNormalized[0]) {
-              // Add the difference to the first item (or item with highest original percentage)
-              proportionallyNormalized[0].percentage_chance = parseFloat((proportionallyNormalized[0].percentage_chance + difference).toFixed(2));
+          // Distribute rounding difference
+          const difference = parseFloat((targetSumForUnlocked - roundedSum).toFixed(2));
+          if (difference !== 0 && proportionallyNormalized.length > 0) {
+              const firstUnlocked = proportionallyNormalized[0];
+              if (firstUnlocked) { // Check existence
+                  let adjustedPerc = firstItem.percentage_chance + difference;
+                  firstItem.percentage_chance = parseFloat(Math.max(0, adjustedPerc).toFixed(2));
+
+                  // Simple secondary distribution if first adjustment went negative
+                  if (adjustedPerc < 0 && proportionallyNormalized.length > 1) {
+                      const secondUnlocked = proportionallyNormalized[1];
+                      if (secondUnlocked) {
+                           console.warn("Distributing rounding difference to the second item due to negative result on the first.");
+                           secondUnlocked.percentage_chance = parseFloat(Math.max(0, secondUnlocked.percentage_chance + adjustedPerc).toFixed(2));
+                      }
+                  }
+              }
           }
-          normalizedItems = proportionallyNormalized;
+          normalizedUnlockedItems = proportionallyNormalized;
       }
 
-      // Ensure no negative percentages after adjustment (edge case)
-      normalizedItems = normalizedItems.map(item => ({
+      // Ensure no negative percentages after final adjustment
+      normalizedUnlockedItems = normalizedUnlockedItems.map(item => ({
           ...item,
           percentage_chance: Math.max(0, item.percentage_chance)
       }));
 
-      // Final check and re-normalization if something went wrong (e.g., all became zero)
-      const finalSumCheck = normalizedItems.reduce((sum, item) => sum + item.percentage_chance, 0);
-      if (Math.abs(finalSumCheck - 100) > 0.01 && items.length > 0) { // If still not 100
-          console.warn("Normalization resulted in non-100 sum, applying equal distribution as fallback.");
-          const equalPercentage = parseFloat((100 / items.length).toFixed(2));
-          let remainder = 100 - (equalPercentage * items.length);
-           normalizedItems = items.map((item, index) => ({
-              ...item,
-              percentage_chance: index === 0 ? parseFloat((equalPercentage + remainder).toFixed(2)) : equalPercentage,
-          }));
+      // Combine locked and normalized unlocked items back
+      const finalItems = items.map(originalItem => {
+          if (originalItem.isPercentageLocked) {
+              return originalItem;
+          } else {
+              const normalizedItem = normalizedUnlockedItems.find(normalized => normalized.id === originalItem.id);
+              return normalizedItem || originalItem;
+          }
+      });
+
+      // Final check and alert
+      const finalSumCheck = finalItems.reduce((sum, item) => sum + item.percentage_chance, 0);
+      if (Math.abs(finalSumCheck - 100) > 0.015) {
+          console.error(`Normalization failed to sum precisely to 100%. Final sum: ${finalSumCheck.toFixed(2)}. Please check logic.`);
+          alert(`Normalization calculation resulted in a sum of ${finalSumCheck.toFixed(2)}%. Please review percentages manually.`);
+          setItems(finalItems);
+      } else {
+          // Ensure exactly 100 by adjusting the first unlocked item if needed
+          const finalDifference = 100 - finalSumCheck;
+          if (Math.abs(finalDifference) > 0.001 && unlockedItems.length > 0) {
+               const firstUnlockedIndex = finalItems.findIndex(item => !item.isPercentageLocked);
+               if (firstUnlockedIndex !== -1) {
+                   let firstItem = finalItems[firstUnlockedIndex];
+                   if (firstItem) {
+                       firstItem.percentage_chance = parseFloat(Math.max(0, firstItem.percentage_chance + finalDifference).toFixed(2));
+                   }
+               }
+          }
+          setItems(finalItems);
+          // Provide accurate alert message
+          if (wereItemsLocked) {
+              alert('Unlocked percentages normalized successfully.');
+          } else {
+              alert('All percentages normalized to sum 100%.');
+          }
       }
-
-
-      setItems(normalizedItems);
-      alert('Percentages normalized to sum 100%');
   };
 
 
   // Function to add a new empty item row
   const addItem = () => {
-    setItems([...items, { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR }]);
+    setItems([...items, { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]); // Add lock state
   };
 
   // Function to remove an item row
@@ -663,8 +718,8 @@ function CreateCaseForm() {
                     disabled={isSaving}
                  />
              </div>
-            {/* Percentage Input */}
-            <div style={{ flexBasis: 'calc(15% - 10px)' }}> {/* Adjusted basis */}
+            {/* Percentage Input & Lock Checkbox */}
+            <div style={{ flexBasis: 'calc(20% - 10px)', display: 'flex', flexDirection: 'column' }}> {/* Increased basis slightly */}
                 <label htmlFor={`percentage_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Chance (%):</label>
                 <input
                     type="number"
@@ -677,11 +732,23 @@ function CreateCaseForm() {
                     className="cs-input"
                     style={{ width: '100%' }} // Ensure input fills basis
                     required
-                    disabled={isSaving}
+                    disabled={isSaving || item.isPercentageLocked} // Disable if locked
                 />
+                 {/* Lock Checkbox */}
+                 <div style={{ marginTop: '4px', fontSize: '0.8em' }}>
+                     <input
+                         type="checkbox"
+                         id={`lock_perc_${index}`}
+                         checked={item.isPercentageLocked}
+                         onChange={(e) => handleItemChange(index, 'isPercentageLocked', e.target.checked)}
+                         disabled={isSaving}
+                         style={{ verticalAlign: 'middle', marginRight: '3px' }}
+                     />
+                     <label htmlFor={`lock_perc_${index}`} style={{ verticalAlign: 'middle', cursor: 'pointer' }}>Lock %</label>
+                 </div>
             </div>
             {/* Color Picker */}
-            <div style={{ flexBasis: 'calc(15% - 10px)', display: 'flex', alignItems: 'center', gap: '5px' }}> {/* Adjusted basis */}
+            <div style={{ flexBasis: 'calc(10% - 10px)', display: 'flex', alignItems: 'center', gap: '5px' }}> {/* Adjusted basis */}
                  <label htmlFor={`color_picker_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Color:</label>
                  <input
                     type="color"
