@@ -683,10 +683,10 @@ function CreateCaseForm() {
 
       {!isLoadingTemplates && !error && items.map((item, index) => ( // Also check for error before mapping
         <React.Fragment key={item.id}>
-          {/* Item Row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px', alignItems: 'flex-start', borderBottom: '1px dashed var(--border-color)', paddingBottom: '15px' }}>
+          {/* Item Row - Final Attempt at Compact Single Line Layout */}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', marginBottom: '15px', alignItems: 'flex-end', borderBottom: '1px dashed var(--border-color)', paddingBottom: '15px' }}> {/* Align items to bottom */}
             {/* Template Selector */}
-            <div style={{ flexBasis: 'calc(40% - 10px)' }}> {/* Adjusted basis */}
+            <div style={{ flex: '3 1 0%' }}> {/* Allow more growth, shrink, zero basis */}
                  <label htmlFor={`template_select_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Item Template:</label>
                  <select
                     id={`template_select_${index}`}
@@ -695,13 +695,14 @@ function CreateCaseForm() {
                     className="cs-input"
                     required
                     disabled={isSaving}
+                    style={{ width: '100%' }} // Ensure select fills its container
                  >
                      <option value="" disabled>-- Select Template --</option>
                      {renderTemplateOptions(availableTemplates)}
                  </select>
             </div>
              {/* Override Name Input */}
-             <div style={{ flexBasis: 'calc(30% - 10px)' }}> {/* Adjusted basis */}
+             <div style={{ flex: '2 1 0%' }}> {/* Allow growth, shrink, zero basis */}
                  <label htmlFor={`override_name_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Name Override (Optional):</label>
                  <input
                     type="text"
@@ -710,27 +711,31 @@ function CreateCaseForm() {
                     onChange={(e) => handleItemChange(index, 'override_name', e.target.value)}
                     placeholder="e.g., StatTrak™"
                     className="cs-input"
+                    style={{ width: '100%' }} // Ensure input fills its container
                     disabled={isSaving}
                  />
              </div>
-            {/* Percentage Input & Lock Checkbox */}
-            <div style={{ flexBasis: 'calc(20% - 10px)', display: 'flex', flexDirection: 'column' }}> {/* Increased basis slightly */}
-                <label htmlFor={`percentage_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Chance (%):</label>
-                <input
-                    type="number"
-                    id={`percentage_${index}`}
-                    value={item.percentage_chance}
-                    onChange={(e) => handleItemChange(index, 'percentage_chance', e.target.value)}
-                    min="0"
-                    step="0.01" // Allow decimals
-                    placeholder="e.g., 10.5"
-                    className="cs-input"
-                    style={{ width: '100%' }} // Ensure input fills basis
-                    required
-                    disabled={isSaving || item.isPercentageLocked} // Disable if locked
-                />
-                 {/* Lock Checkbox */}
-                 <div style={{ marginTop: '4px', fontSize: '0.8em' }}>
+            {/* Percentage Input & Lock Checkbox Group - Updated for horizontal layout */}
+            <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'flex-end', gap: '5px' }}> {/* Allow flex, align items bottom, add gap */}
+                {/* Chance Input Container */}
+                <div style={{ flexGrow: 1 }}>
+                    <label htmlFor={`percentage_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Chance (%):</label>
+                    <input
+                        type="number"
+                        id={`percentage_${index}`}
+                        value={item.percentage_chance}
+                        onChange={(e) => handleItemChange(index, 'percentage_chance', e.target.value)}
+                        min="0"
+                        step="0.01" // Allow decimals
+                        placeholder="e.g., 10.5"
+                        className="cs-input"
+                        style={{ width: '100%' }} // Input fills its container
+                        required
+                        disabled={isSaving || item.isPercentageLocked} // Disable if locked
+                    />
+                </div>
+                 {/* Lock Checkbox Container - Positioned next to input */}
+                 <div style={{ flexShrink: 0, paddingBottom: '5px' }}> {/* Prevent shrinking, add padding to align with input bottom */}
                      <input
                          type="checkbox"
                          id={`lock_perc_${index}`}
@@ -743,7 +748,7 @@ function CreateCaseForm() {
                  </div>
             </div>
             {/* Color Picker */}
-            <div style={{ flexBasis: 'calc(10% - 10px)', display: 'flex', alignItems: 'center', gap: '5px' }}> {/* Adjusted basis */}
+            <div style={{ flex: '0 0 auto' }}> {/* Don't grow/shrink */}
                  <label htmlFor={`color_picker_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Color:</label>
                  <input
                     type="color"
@@ -751,13 +756,13 @@ function CreateCaseForm() {
                     value={item.display_color}
                     onChange={(e) => handleItemChange(index, 'display_color', e.target.value)}
                     className="cs-input" // May need custom styling for color input
-                    style={{ padding: '2px', height: '30px', width: '40px', border: '1px solid var(--border-color)' }} // Basic styling
+                    style={{ padding: '2px', height: '30px', width: '40px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
                     required
                     disabled={isSaving}
                  />
             </div>
             {/* Remove Button */}
-            <div style={{ flexBasis: '100%', textAlign: 'right', marginTop: '5px' }}> {/* Moved to new line for smaller screens */}
+            <div style={{ flex: '0 0 auto', marginLeft: 'auto' }}> {/* Push to end */}
                 <StyledButton
                 onClick={() => removeItem(index)}
                 disabled={items.length <= 1 || isSaving}
