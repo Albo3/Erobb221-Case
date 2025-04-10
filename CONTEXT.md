@@ -10,7 +10,7 @@ This project is a web application simulating case openings, similar to CS:GO. Th
 *   **Backend:** Hono (v4) running on Bun, serving a REST API.
 *   **Database:** SQLite (`database.sqlite` file at project root), accessed via `bun:sqlite`.
 *   **Styling:** Plain CSS (`style.css`, `cs16.css`, `CaseOpener.css`).
-*   **Development:** `concurrently` is used to run frontend and backend dev servers simultaneously (`bun run dev`).
+*   **Development:** `concurrently` is used to run frontend and backend dev servers simultaneously (`bun run dev`). The `dev:frontend` and `dev:backend` scripts in `package.json` explicitly set `NODE_ENV=development`. <!-- UPDATED -->
 *   **File Storage:** User-uploaded images (for cases and item templates) and sounds (for item templates) are stored locally in the `uploads/` directory at the project root.
 *   **State Management:** Primarily component state (`useState`), with unbox history persisted in `localStorage`.
 *   **Process Management (Production):** `pm2` is used to keep the backend server running persistently. <!-- ADDED -->
@@ -41,7 +41,7 @@ caseAdmin!
 │   └── index.ts          # Hono backend server, API logic, DB setup, static file serving
 ├── src/
 │   ├── index.tsx         # Frontend entry point, React root render
-│   ├── config.ts         # Frontend configuration (API URL) <!-- UPDATED -->
+│   ├── config.ts         # Frontend configuration (API URL - conditional based on NODE_ENV) <!-- UPDATED -->
 │   ├── logger.ts         # Basic console logger
 │   ├── components/       # React components
 │   │   ├── App.tsx       # Main application component, includes Tabs
@@ -158,7 +158,7 @@ Managed via `server/index.ts` using `CREATE TABLE` and `ALTER TABLE` statements 
 *   **Cloudflare:** Used as a proxy in front of Nginx. It handles HTTPS termination (SSL) and provides CDN caching for static assets. DNS records for the domain should be set to "Proxied" in Cloudflare.
 *   **Backend Process:** The Hono backend (`server/index.ts`) is run persistently using `pm2`. It's started via `pm2 start bun --name "erobb-backend" -- run server/index.ts` and configured to restart automatically on server boot.
 *   **Frontend Build:** A production build is created using `NODE_ENV=production bun build ./src/index.tsx --outdir ./build`. The static files from `./public` (`index.html`, `sounds/`) must then be manually copied into `./build`. The `build/index.html` file needs its `<script>` and `<link>` tags updated to point to `./index.js` and `./index.css` respectively.
-*   **Frontend Config:** `src/config.ts` is configured to always use relative paths (`API_BASE_URL = ''`) for API calls, ensuring requests go to `/api/...` which Nginx can proxy.
+*   **Frontend Config:** `src/config.ts` determines the `API_BASE_URL` based on `process.env.NODE_ENV`. In development (`NODE_ENV=development`), it uses `http://localhost:3001`. In production (or other environments), it uses relative paths (`''`) so API requests go to `/api/...` for Nginx proxying. <!-- UPDATED -->
 
 ## Current Status
 

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { HonoRequest } from 'hono'; // Use type-only import
 import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/bun'; // Import serveStatic for serving files
 import { Database } from 'bun:sqlite';
@@ -9,6 +10,7 @@ import { existsSync, mkdirSync } from 'node:fs'; // For ensuring upload dirs exi
 import { parseBlob } from 'music-metadata-browser'; // For reading audio duration
 import bcrypt from 'bcrypt'; // For password hashing
 
+
 // --- Constants ---
 const UPLOADS_DIR = 'uploads';
 const IMAGES_DIR = join(UPLOADS_DIR, 'images');
@@ -16,7 +18,8 @@ const SOUNDS_DIR = join(UPLOADS_DIR, 'sounds');
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const MAX_AUDIO_DURATION_SECONDS = 15; // 15 seconds
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/aac', 'audio/flac'];
+// Add common WAV variations to allowed types
+const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/wave', 'audio/x-wav', 'audio/aac', 'audio/flac'];
 // !!! IMPORTANT: In a real application, store this hash securely in an environment variable, NOT hardcoded!
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$vHO4F6ZpPRqk4/Jp4vX.qOw.qD89QnEvG.KBfID/i/5wQKtS1vYHu'; // Correct hash for 'caseAdmin!'
 
@@ -32,7 +35,7 @@ if (!existsSync(SOUNDS_DIR)) mkdirSync(SOUNDS_DIR);
 
 
 // --- Database Migration ---
-const DB_VERSION = 5; // Reverted back from 6 (History moved to localStorage)
+const DB_VERSION = 6; // Increment version for percentage chance and display color
 
 const getDbVersion = (): number => {
     try {
@@ -105,7 +108,7 @@ if (currentVersion < DB_VERSION) {
     `);
     // --- End Migration Logic for v4 ---
 
-    console.log(`DB migration version ${DB_VERSION} applied.`);
+    // console.log(`DB migration version ${DB_VERSION} applied.`); // Message moved below specific version blocks
     // --- Migration Logic for v5 ---
     if (currentVersion < 5) {
         console.log('Applying DB migration version 5: Add image_path to cases table...');
@@ -125,38 +128,49 @@ if (currentVersion < DB_VERSION) {
         }
     }
     // --- End Migration Logic for v5 ---
+    if (currentVersion < 5) {
+        console.log(`DB migration version 5 applied.`);
+    }
 
-
-    console.log(`DB migration version ${DB_VERSION} applied.`);
     // --- Migration Logic for v6 ---
     if (currentVersion < 6) {
-        console.log('Applying DB migration version 6: Create unbox_history table...');
+        console.log('Applying DB migration version 6: Add percentage_chance and display_color to case_items, drop color...');
         try {
-            db.exec(`
-                CREATE TABLE IF NOT EXISTS unbox_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    item_name TEXT NOT NULL,
-                    item_color TEXT NOT NULL,
-                    item_image_url TEXT, -- Store the relative URL
-                    unboxed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                );
-            `);
-            // Add index for efficient ordering/deletion
-            db.exec('CREATE INDEX IF NOT EXISTS idx_unboxed_at ON unbox_history (unboxed_at);');
-            console.log('Successfully created unbox_history table and index.');
-        } catch (createError) {
-            console.error('Failed to create unbox_history table:', createError);
-            throw createError;
+            // Add new columns with defaults first to handle existing rows if any
+            db.exec('ALTER TABLE case_items ADD COLUMN percentage_chance REAL NOT NULL DEFAULT 0');
+            db.exec('ALTER TABLE case_items ADD COLUMN display_color TEXT NOT NULL DEFAULT \'#808080\''); // Default grey
+            console.log('Successfully added percentage_chance and display_color columns.');
+
+            // Now attempt to drop the old 'color' column
+            // Note: Older SQLite versions might not support DROP COLUMN directly.
+            // If this fails, a more complex migration (create new table, copy data, drop old, rename new) would be needed.
+            // However, Bun's SQLite is usually recent enough.
+            db.exec('ALTER TABLE case_items DROP COLUMN color');
+            console.log('Successfully dropped old color column.');
+
+            console.log('DB migration version 6 applied.');
+        } catch (migrationError) {
+            console.error('Failed during DB migration version 6:', migrationError);
+            // Check if columns already exist from a partial run
+             const checkStmt = db.prepare("PRAGMA table_info(case_items)");
+             const columns = checkStmt.all() as Array<{ name: string }>;
+             const hasPercent = columns.some(c => c.name === 'percentage_chance');
+             const hasDisplayColor = columns.some(c => c.name === 'display_color');
+             const hasOldColor = columns.some(c => c.name === 'color');
+
+             if (hasPercent && hasDisplayColor && !hasOldColor) {
+                 console.warn('Migration v6 seems already applied or partially applied successfully. Skipping.');
+             } else {
+                console.error('Irrecoverable error during migration v6. Manual intervention might be needed.');
+                throw migrationError; // Re-throw to stop server startup
+             }
         }
     }
-    // --- Migration Logic for v6 (REMOVED) ---
-    // if (currentVersion < 6) { ... }
+    // --- End Migration Logic for v6 ---
 
-
-    console.log(`DB migration version ${DB_VERSION} applied.`); // This message might be slightly inaccurate if only v5 was applied, but harmless.
-    setDbVersion(DB_VERSION);
+    setDbVersion(DB_VERSION); // Update version only if all migrations succeed
 } else {
-     console.log(`Database schema is up to date (v${DB_VERSION}).`); // Use the current DB_VERSION
+     console.log(`Database schema is up to date (v${DB_VERSION}).`);
 }
 // --- End Database Migration ---
 
@@ -235,16 +249,19 @@ app.post('/api/item-templates', async (c) => {
             if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
                 return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
             }
+            // Improved metadata parsing with specific error handling
             try {
+                console.log(`Attempting to parse metadata for audio file: ${soundFile.name}, type: ${soundFile.type}`);
                 const metadata = await parseBlob(soundFile);
+                console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration}`);
                 if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
-                    return c.json({ error: `Audio duration exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
+                    return c.json({ error: `Audio duration (${metadata.format.duration.toFixed(1)}s) exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
                 }
                 console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
-            } catch (metaError) {
-                console.error('Error reading audio metadata:', metaError);
-                // Decide if you want to reject or allow if metadata can't be read
-                return c.json({ error: 'Could not read audio file metadata to verify duration.' }, 400);
+            } catch (metaError: any) {
+                console.error(`Error reading audio metadata for ${soundFile.name}:`, metaError);
+                // Provide a more specific error message if parsing fails
+                return c.json({ error: `Could not read metadata from the provided audio file. It might be corrupted or in an unsupported format. Error: ${metaError.message || 'Unknown metadata error'}` }, 400);
             }
         }
         // --- End File Validation ---
@@ -379,15 +396,19 @@ app.put('/api/item-templates/:id', async (c) => {
             if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
                 return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
             }
+            // Improved metadata parsing with specific error handling
              try {
+                console.log(`Attempting to parse metadata for audio file: ${soundFile.name}, type: ${soundFile.type}`);
                 const metadata = await parseBlob(soundFile);
+                 console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration}`);
                 if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
-                    return c.json({ error: `Audio duration exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
+                    return c.json({ error: `Audio duration (${metadata.format.duration.toFixed(1)}s) exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
                 }
                 console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
-            } catch (metaError) {
-                console.error('Error reading audio metadata:', metaError);
-                return c.json({ error: 'Could not read audio file metadata to verify duration.' }, 400);
+            } catch (metaError: any) {
+                console.error(`Error reading audio metadata for ${soundFile.name}:`, metaError);
+                // Provide a more specific error message if parsing fails
+                return c.json({ error: `Could not read metadata from the provided audio file. It might be corrupted or in an unsupported format. Error: ${metaError.message || 'Unknown metadata error'}` }, 400);
             }
         }
         // --- End File Validation ---
@@ -530,10 +551,11 @@ app.get('/api/cases/:id', (c) => {
         // Fetch associated items by joining cases -> case_items -> item_templates
         const itemsStmt = db.prepare(`
             SELECT
-                ci.item_template_id, -- Include the template ID
-                ci.override_name,    -- Include the override name
-                ci.color,
-                it.base_name,        -- Include the base name from template
+                ci.item_template_id,
+                ci.override_name,
+                ci.percentage_chance, -- Fetch new percentage column
+                ci.display_color,     -- Fetch new display color column
+                it.base_name,
                 it.image_path as image_url,
                 it.sound_path as sound_url,
                 it.rules_text as rules
@@ -545,7 +567,8 @@ app.get('/api/cases/:id', (c) => {
         const itemsRaw = itemsStmt.all(id) as Array<{
             item_template_id: number;
             override_name: string | null;
-            color: string;
+            percentage_chance: number; // Add percentage
+            display_color: string;     // Add display color
             base_name: string;
             image_url: string | null;
             sound_url: string | null;
@@ -554,9 +577,10 @@ app.get('/api/cases/:id', (c) => {
 
         // Process raw items to create the final structure for the frontend
         const items = itemsRaw.map(item => ({
-            item_template_id: item.item_template_id, // Keep template ID for editing reference
-            name: item.override_name ?? item.base_name, // Use override or base name
-            color: item.color,
+            item_template_id: item.item_template_id,
+            name: item.override_name ?? item.base_name,
+            percentage_chance: item.percentage_chance, // Include percentage
+            display_color: item.display_color,         // Include display color
             image_url: item.image_url,
             sound_url: item.sound_url,
             rules: item.rules,
@@ -608,14 +632,51 @@ async function saveUploadedFile(file: File, targetDir: string): Promise<string |
 }
 
 
-// Define expected structure for items within the form data (will be JSON string)
+// Define expected structure for items within the form data (JSON string)
 interface CaseItemLinkData {
     item_template_id: number;
     override_name?: string | null;
-    color: string;
+    percentage_chance: number; // Changed from color
+    display_color: string;     // Added display color
 }
 
-// POST /api/cases - Create a new case (now handles multipart/form-data for image)
+// Helper function to validate CaseItemLinkData array
+const validateCaseItems = (items: any[], req: HonoRequest): string | null => {
+    if (!Array.isArray(items) || items.length === 0) {
+        return 'Items must be a non-empty array.';
+    }
+
+    // let totalPercentage = 0; // Removed sum validation as per user request
+
+    for (const item of items) {
+        if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
+            return `Invalid or missing item_template_id for item. Must be a number.`;
+        }
+        // Validate percentage_chance
+        if (item.percentage_chance === undefined || item.percentage_chance === null || typeof item.percentage_chance !== 'number' || item.percentage_chance < 0) {
+            return `Each item must have a valid, non-negative percentage_chance. Failed item template ID: ${item.item_template_id}`;
+        }
+        // Validate display_color
+        if (!item.display_color || typeof item.display_color !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(item.display_color)) {
+             return `Each item must have a valid hex color code (e.g., #RRGGBB) for display_color. Failed item template ID: ${item.item_template_id}`;
+        }
+        if (item.override_name && typeof item.override_name !== 'string') {
+            return `Invalid override_name format for item template ID: ${item.item_template_id}. Must be a string or null.`;
+        }
+        // totalPercentage += item.percentage_chance; // Removed sum validation
+    }
+
+    // Removed sum validation block
+    // const tolerance = 0.01; // Allow for floating point inaccuracies
+    // if (Math.abs(totalPercentage - 100) > tolerance) {
+    //     return `The sum of percentage chances for all items must be exactly 100%. Current sum: ${totalPercentage.toFixed(2)}%`;
+    // }
+
+    return null; // Validation passed
+};
+
+
+// POST /api/cases - Create a new case (handles multipart/form-data, uses new item structure)
 app.post('/api/cases', async (c) => {
     console.log('POST /api/cases requested (multipart/form-data)');
     let caseId: number | null = null;
@@ -640,26 +701,15 @@ app.post('/api/cases', async (c) => {
         let items: CaseItemLinkData[];
         try {
             items = JSON.parse(itemsJson);
-            if (!Array.isArray(items) || items.length === 0) {
-                throw new Error('Items must be a non-empty array.');
+            // Removed duplicated block here
+            const validationError = validateCaseItems(items, c.req);
+            if (validationError) {
+                return c.json({ error: validationError }, 400);
             }
         } catch (parseError) {
             return c.json({ error: 'Invalid items JSON format.' }, 400);
         }
-
-        // Validate each item within the parsed array
-        for (const item of items) {
-            if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
-                 return c.json({ error: `Invalid or missing item_template_id for item. Must be a number.` }, 400);
-            }
-            if (!item.color || typeof item.color !== 'string' || item.color.trim() === '') {
-                return c.json({ error: `Each item must have a valid color. Failed item template ID: ${item.item_template_id}` }, 400);
-            }
-            if (item.override_name && typeof item.override_name !== 'string') {
-                 return c.json({ error: `Invalid override_name format for item template ID: ${item.item_template_id}. Must be a string or null.` }, 400);
-            }
-        }
-        // --- End Validation ---
+        // --- End Basic Validation ---
 
         // --- File Validation ---
         if (imageFile) {
@@ -673,12 +723,12 @@ app.post('/api/cases', async (c) => {
         // --- End File Validation ---
 
         // --- Database Insertion (Transaction) ---
-        // Add image_path to the insert statement
         const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
+        // Update insert statement for case_items with new columns
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
-            (case_id, item_template_id, override_name, color)
-            VALUES (?, ?, ?, ?)
+            (case_id, item_template_id, override_name, percentage_chance, display_color)
+            VALUES (?, ?, ?, ?, ?)
         `);
 
         db.exec('BEGIN TRANSACTION');
@@ -706,13 +756,14 @@ app.post('/api/cases', async (c) => {
             }
             caseId = caseResult.id;
 
-            // Insert item links
-            for (const item of items) { // Use parsed items array
+            // Insert item links using new structure
+            for (const item of items) {
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
                     item.override_name?.trim() ?? null,
-                    item.color.trim()
+                    item.percentage_chance, // Use new percentage
+                    item.display_color       // Use new display color
                 );
             }
 
@@ -782,28 +833,16 @@ app.put('/api/cases/:id', async (c) => {
         }
 
         let items: CaseItemLinkData[];
-        try {
+         try {
             items = JSON.parse(itemsJson);
-            if (!Array.isArray(items) || items.length === 0) {
-                throw new Error('Items must be a non-empty array.');
+            const validationError = validateCaseItems(items, c.req); // Use helper
+            if (validationError) {
+                return c.json({ error: validationError }, 400);
             }
         } catch (parseError) {
             return c.json({ error: 'Invalid items JSON format.' }, 400);
         }
-
-        // Validate each item within the parsed array
-        for (const item of items) {
-             if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
-                 return c.json({ error: `Invalid or missing item_template_id for item. Must be a number.` }, 400);
-            }
-            if (!item.color || typeof item.color !== 'string' || item.color.trim() === '') {
-                return c.json({ error: `Each item must have a valid color. Failed item template ID: ${item.item_template_id}` }, 400);
-            }
-            if (item.override_name && typeof item.override_name !== 'string') {
-                 return c.json({ error: `Invalid override_name format for item template ID: ${item.item_template_id}. Must be a string or null.` }, 400);
-            }
-        }
-        // --- End Validation ---
+        // --- End Basic Validation ---
 
         // --- File Validation ---
         if (imageFile) {
@@ -817,16 +856,14 @@ app.put('/api/cases/:id', async (c) => {
         // --- End File Validation ---
 
         // --- Database Update (Transaction) ---
-        // Update statement now includes image_path
         const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ?, image_path = ? WHERE id = ?');
         const deleteOldItemsStmt = db.prepare('DELETE FROM case_items WHERE case_id = ?');
+        // Update insert statement for case_items with new columns
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
-            (case_id, item_template_id, override_name, color)
-            VALUES (?, ?, ?, ?)
+            (case_id, item_template_id, override_name, percentage_chance, display_color)
+            VALUES (?, ?, ?, ?, ?)
         `);
-
-        // No need to check if case exists again, already done above
 
         db.exec('BEGIN TRANSACTION');
         let finalImagePath = oldImagePath; // Start with the existing path
@@ -854,13 +891,14 @@ app.put('/api/cases/:id', async (c) => {
             // 2. Delete old item links for this case
             deleteOldItemsStmt.run(caseId);
 
-            // 3. Insert new item links
-            for (const item of items) { // Use parsed items array
+            // 3. Insert new item links using new structure
+            for (const item of items) {
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
                     item.override_name?.trim() ?? null,
-                    item.color.trim()
+                    item.percentage_chance, // Use new percentage
+                    item.display_color       // Use new display color
                 );
             }
 

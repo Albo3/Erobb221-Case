@@ -8,8 +8,8 @@
     "typescript": "^5"
   },
   "scripts": {
-    "dev:frontend": "bun run --hot src/index.tsx",
-    "dev:backend": "bun run server/index.ts",
+    "dev:frontend": "set NODE_ENV=development&& bun run --hot src/index.tsx",
+    "dev:backend": "set NODE_ENV=development&& bun run server/index.ts",
     "dev": "concurrently \"bun run dev:frontend\" \"bun run dev:backend\"",
     "build": "bun build src/index.tsx --outdir ./build --public-dir ./public"
   },

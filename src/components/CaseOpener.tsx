@@ -6,19 +6,22 @@ import './CaseOpener.css';
 // Removed direct JSON import
 // Removed import caseSoundUrl from '/public/sounds/case.mp3';
 
-// Define interfaces for case data structure (CaseItem remains the same)
+// Define interfaces for case data structure
 interface CaseItem {
   name: string;
-  color: string;
+  // color: string; // Removed old color
+  display_color: string; // Added display color
+  percentage_chance: number; // Added percentage chance
   image_url?: string | null;
   rules?: string | null;
-  sound_url?: string | null; // Added item sound_url
+  sound_url?: string | null;
+  // Add item_template_id if needed for any logic here, though maybe not
+  item_template_id?: number; // Optional, might not be needed directly in opener
 }
 
 interface CaseData {
   name: string;
   description: string | null;
-  // sound_url?: string | null; // Removed case sound_url
   items: CaseItem[];
   id?: number;
 }
@@ -33,17 +36,6 @@ interface CaseInfo {
 
 const REEL_ITEM_WIDTH = 120; // Width of each item in pixels (now matches height, no margin)
 const SPIN_DURATION = 6000; // Duration of spin animation in ms (Increased to 6s)
-
-// Define standard CS:GO rarity colors and names (copied from CreateCaseForm)
-const RARITY_COLORS = [
-    { name: 'Consumer Grade', value: '#b0c3d9' },    // White/Grayish
-    { name: 'Industrial Grade', value: '#5e98d9' },  // Light Blue
-    { name: 'Mil-Spec', value: '#4b69ff' },          // Blue
-    { name: 'Restricted', value: '#8847ff' },        // Purple
-    { name: 'Classified', value: '#d32ce6' },        // Pink
-    { name: 'Covert', value: '#eb4b4b' },            // Red
-    { name: 'Exceedingly Rare', value: '#ffd700' },  // Gold (Knives/Gloves)
-];
 
 // Define props interface
 interface CaseOpenerProps {
@@ -83,26 +75,21 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               } else {
                   // No cases in DB, load a default fallback case
                   console.log("No cases found in DB, loading default fallback case.");
+                  // Define a default fallback case with new structure
+                  const defaultItems: CaseItem[] = [
+                      { name: "Default Item 1", display_color: "#cccccc", percentage_chance: 50, image_url: null, rules: null, sound_url: null },
+                      { name: "Default Item 2", display_color: "#aaaaaa", percentage_chance: 30, image_url: null, rules: null, sound_url: null },
+                      { name: "Default Item 3", display_color: "#888888", percentage_chance: 15, image_url: null, rules: null, sound_url: null },
+                      { name: "Default Item 4", display_color: "#666666", percentage_chance: 5, image_url: null, rules: null, sound_url: null },
+                  ];
                   setCurrentCaseData({
                       id: 0,
                       name: "Default Starter Case",
                       description: "A basic case loaded because the database is empty.",
-                      // No case sound_url
-                      items: [
-                          // Add nulls for optional fields in default items
-                          { name: "Default Gray", color: "#b0c3d9", image_url: null, rules: null, sound_url: null },
-                          { name: "Default Blue", color: "#5e98d9", image_url: null, rules: null, sound_url: null },
-                          { name: "Default Purple", color: "#4b69ff", image_url: null, rules: null, sound_url: null },
-                          { name: "Default Gold", color: "#ffd700", image_url: null, rules: null, sound_url: null },
-                      ]
+                      items: defaultItems
                   });
                   // Initialize reel for fallback case
-                  setReelItems([
-                      { name: "Default Gray", color: "#b0c3d9", image_url: null, rules: null, sound_url: null },
-                      { name: "Default Blue", color: "#5e98d9", image_url: null, rules: null, sound_url: null },
-                      { name: "Default Purple", color: "#4b69ff", image_url: null, rules: null, sound_url: null },
-                      { name: "Default Gold", color: "#ffd700", image_url: null, rules: null, sound_url: null },
-                  ].slice(0, 10));
+                  setReelItems(defaultItems.slice(0, 10)); // Use default items for reel
                   setSelectedCaseId('');
               }
               setError(null);
@@ -163,53 +150,34 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
     }
   }, [volume]); // Run this effect when volume prop changes
 
-  // Function to get a random item based on rarity distribution (color)
+  // Function to get a random item based on custom percentage chance
   const getRandomItem = (): CaseItem | null => {
-      if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) return null;
+      if (!currentCaseData || !currentCaseData.items || currentCaseData.items.length === 0) {
+          console.warn("getRandomItem called with no case data or items.");
+          return null;
+      }
 
-      // --- Determine Odds Based on Rarity Distribution (using color value) ---
-      // This is a simplified example. Real CS:GO odds are complex and not public.
-      // We'll assign higher chances to lower rarities based on their color value matching RARITY_COLORS.
-      const rarityWeights: { [colorValue: string]: number } = {
-          [RARITY_COLORS[0]?.value ?? '#b0c3d9']: 100, // Consumer Grade
-          [RARITY_COLORS[1]?.value ?? '#5e98d9']: 50,  // Industrial Grade
-          [RARITY_COLORS[2]?.value ?? '#4b69ff']: 25,  // Mil-Spec
-          [RARITY_COLORS[3]?.value ?? '#8847ff']: 10,  // Restricted
-          [RARITY_COLORS[4]?.value ?? '#d32ce6']: 5,   // Classified
-          [RARITY_COLORS[5]?.value ?? '#eb4b4b']: 2,   // Covert
-          [RARITY_COLORS[6]?.value ?? '#ffd700']: 1,   // Exceedingly Rare
-      };
+      const items = currentCaseData.items;
+      const totalPercentageSum = items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
 
-      const weightedList: CaseItem[] = [];
-      currentCaseData.items.forEach(item => {
-          const weight = rarityWeights[item.color] || 1; // Default weight if color not found
-          for (let i = 0; i < weight; i++) {
-              weightedList.push(item);
+      if (totalPercentageSum <= 0) {
+          console.warn("Total percentage sum is zero or less, returning first item as fallback.");
+          return items[0] ?? null; // Fallback to first item if percentages are invalid
+      }
+
+      let randomNum = Math.random() * totalPercentageSum; // Random number between 0 and total sum
+
+      for (const item of items) {
+          const chance = item.percentage_chance || 0;
+          if (randomNum <= chance) {
+              return item; // This item is selected
           }
-      });
+          randomNum -= chance;
+      }
 
-      if (weightedList.length === 0) return currentCaseData.items[0] ?? null; // Fallback
-
-      const randomIndex = Math.floor(Math.random() * weightedList.length);
-      return weightedList[randomIndex] ?? null; // Return selected item or null
-      // --- End Odds Logic ---
-
-
-      // --- Original Weight-Based Logic (Removed) ---
-      // const totalWeight = currentCaseData.items.reduce((sum, item) => sum + item.weight, 0);
-      // if (totalWeight <= 0) {
-      //      const firstItem = currentCaseData.items[0];
-      //      return firstItem ?? null;
-      // }
-      // let randomNum = Math.random() * totalWeight;
-      // for (const item of currentCaseData.items) {
-      //     if (randomNum < item.weight) {
-      //         return item;
-      //     }
-      //     randomNum -= item.weight;
-      // }
-
-      // Fallback should ideally not be reached
+      // Fallback in case of floating point issues or unexpected scenarios
+      console.warn("Random selection fallback triggered, returning last item.");
+      return items[items.length - 1] ?? null;
   };
 
   const startSpin = () => {
@@ -384,10 +352,10 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               <div style={{ textAlign: 'center' }}>
                   <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
                   <p style={{
-                      color: wonItem.color || 'white',
+                      color: wonItem.display_color || 'white', // Use display_color
                       fontSize: '1.3em', // Reduced font size
                       fontWeight: 'bold',
-                      border: `2px solid ${wonItem.color || 'white'}`,
+                      border: `2px solid ${wonItem.display_color || 'white'}`, // Use display_color
                       padding: '6px 10px', // Further reduced padding
                       display: 'inline-block',
                       marginTop: '3px', // Reduced margin
@@ -439,10 +407,10 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                   <div className="case-opener-reel" ref={reelRef}>
                       {reelItems.map((item, index) => (
                           <div
-                              key={`${item.name}-${index}-${Math.random()}`} // Improve key uniqueness for dynamic reel
+                              key={`${item.name}-${item.item_template_id || index}-${Math.random()}`} // Improve key uniqueness
                               // Conditionally add 'no-image' class if image_url is missing
                               className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
-                              style={{ color: item.color || 'white' }} // Use color from item data
+                              style={{ color: item.display_color || 'white' }} // Use display_color
                           >
                               {/* Wrap name in a span for specific styling */}
                               <span className="case-opener-item-name">{item.name}</span>
