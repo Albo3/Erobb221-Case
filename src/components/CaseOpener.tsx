@@ -380,13 +380,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                           onError={(e) => (e.currentTarget.style.display = 'none')}
                       />
                   )}
-                  {/* Display Rules if text exists */}
-                  {wonItem.rules && (
-                      <div style={{ marginTop: '10px', fontSize: '0.9em', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
-                          <strong>Rules:</strong>
-                          <p>{wonItem.rules}</p>
-                      </div>
-                  )}
+                  {/* Rules display removed from here - now handled in App.tsx left panel */}
               </div>
           )}
           {/* Placeholder text if nothing won yet */}

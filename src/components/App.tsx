@@ -11,13 +11,15 @@ import './CaseOpener.css';
 // import './Tabs.css'; // Add if Tabs.css exists and is needed
 
 // Define CaseItem interface (needed for history state)
-// Copied from CaseOpener.tsx - ensure consistency if CaseItem changes
+// Align with CaseOpener/WheelSpinner after recent changes
 interface CaseItem {
   name: string;
-  color: string;
+  display_color: string; // Use display_color
+  percentage_chance: number; // Add percentage_chance (though not directly used in history display)
   image_url?: string | null;
   rules?: string | null;
   sound_url?: string | null;
+  item_template_id?: number; // Keep optional
 }
 
 
@@ -26,6 +28,7 @@ function App() {
   const [displayMode, setDisplayMode] = useState<'case' | 'wheel'>('case'); // State for display mode
   const [volume, setVolume] = useState(0.5);
   const [sequenceState, setSequenceState] = useState(0); // 0: initial, 1: volume correct
+  const [currentItemRules, setCurrentItemRules] = useState<string | null>(null); // State for current item's rules
   const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>(() => {
       // Load initial history from localStorage
       try {
@@ -98,8 +101,12 @@ function App() {
   };
 
 
-  // Handler for receiving a new unboxed item from CaseOpener
+  // Handler for receiving a new unboxed item from CaseOpener/WheelSpinner
   const handleNewUnbox = (newItem: CaseItem) => {
+      // Update the rules display
+      setCurrentItemRules(newItem.rules ?? null);
+
+      // Update the history panel
       setUnboxedHistory(prevHistory => {
           const updatedHistory = [newItem, ...prevHistory].slice(0, 15); // Add to start, limit to 15
           // Save updated history to localStorage
@@ -216,10 +223,22 @@ function App() {
         </footer>
       </div> {/* Close Centered Content Wrapper */}
 
-      {/* Absolutely Positioned History Panel */}
-      {/* Adjust top value based on actual header height + desired spacing */}
-      {/* Use vh units for max height relative to viewport */}
-      <div className="history-panel" style={{ position: 'absolute', top: '80px', right: '20px', width: '200px', borderLeft: '1px solid var(--border-color)', paddingLeft: '15px', maxHeight: 'calc(100vh - 120px)', /* Adjusted calc */ overflowY: 'auto' }}>
+      {/* Absolutely Positioned Rules Panel (Left) */}
+      {/* Increased width from 350px to 400px */}
+      <div className="history-panel" style={{ position: 'absolute', top: '80px', left: '20px', width: '400px', borderRight: '1px solid var(--border-color)', paddingRight: '15px', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
+          <h4>Item Rules</h4>
+          {currentItemRules ? (
+              <p style={{ fontSize: '0.9em', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {currentItemRules}
+              </p>
+          ) : (
+              <p style={{ fontSize: '0.9em', color: 'var(--secondary-text)' }}>Unbox an item to see its rules.</p>
+          )}
+      </div>
+
+      {/* Absolutely Positioned History Panel (Right) */}
+      {/* Increased width from 200px to 250px */}
+      <div className="history-panel" style={{ position: 'absolute', top: '80px', right: '20px', width: '250px', borderLeft: '1px solid var(--border-color)', paddingLeft: '15px', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
           <h4>Unbox History</h4>
           {unboxedHistory.length === 0 ? (
               <p style={{ fontSize: '0.9em', color: 'var(--secondary-text)' }}>No items unboxed yet.</p>
@@ -236,7 +255,8 @@ function App() {
                                   loading="lazy"
                               />
                           )}
-                          <span style={{ color: item.color, fontSize: '0.9em', wordBreak: 'break-word' }}>
+                          {/* Use display_color for history item text */}
+                          <span style={{ color: item.display_color, fontSize: '0.9em', wordBreak: 'break-word' }}>
                               {item.name}
                           </span>
                       </li>
