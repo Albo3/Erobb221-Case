@@ -15,8 +15,8 @@ import bcrypt from 'bcrypt'; // For password hashing
 const UPLOADS_DIR = 'uploads';
 const IMAGES_DIR = join(UPLOADS_DIR, 'images');
 const SOUNDS_DIR = join(UPLOADS_DIR, 'sounds');
-const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
-const MAX_AUDIO_DURATION_SECONDS = 15; // 15 seconds
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // Increased to 10MB
+// const MAX_AUDIO_DURATION_SECONDS = 15; // Removed duration limit
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 // Add common WAV variations to allowed types
 const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/wave', 'audio/x-wav', 'audio/aac', 'audio/flac'];
@@ -249,19 +249,15 @@ app.post('/api/item-templates', async (c) => {
             if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
                 return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
             }
-            // Improved metadata parsing with specific error handling
+            // Removed duration check, keep metadata parsing for potential future use or logging
             try {
                 console.log(`Attempting to parse metadata for audio file: ${soundFile.name}, type: ${soundFile.type}`);
                 const metadata = await parseBlob(soundFile);
-                console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration}`);
-                if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
-                    return c.json({ error: `Audio duration (${metadata.format.duration.toFixed(1)}s) exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
-                }
-                console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
+                console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration ?? 'N/A'}`);
+                // Duration check removed
             } catch (metaError: any) {
-                console.error(`Error reading audio metadata for ${soundFile.name}:`, metaError);
-                // Provide a more specific error message if parsing fails
-                return c.json({ error: `Could not read metadata from the provided audio file. It might be corrupted or in an unsupported format. Error: ${metaError.message || 'Unknown metadata error'}` }, 400);
+                // Log error but don't reject the upload based on metadata parsing failure alone
+                console.warn(`Could not read metadata from audio file ${soundFile.name}. Allowing upload anyway. Error: ${metaError.message || 'Unknown metadata error'}`);
             }
         }
         // --- End File Validation ---
@@ -396,19 +392,15 @@ app.put('/api/item-templates/:id', async (c) => {
             if (!ALLOWED_AUDIO_TYPES.includes(soundFile.type)) {
                 return c.json({ error: `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}` }, 400);
             }
-            // Improved metadata parsing with specific error handling
+            // Removed duration check, keep metadata parsing for potential future use or logging
              try {
                 console.log(`Attempting to parse metadata for audio file: ${soundFile.name}, type: ${soundFile.type}`);
                 const metadata = await parseBlob(soundFile);
-                 console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration}`);
-                if (metadata.format.duration && metadata.format.duration > MAX_AUDIO_DURATION_SECONDS) {
-                    return c.json({ error: `Audio duration (${metadata.format.duration.toFixed(1)}s) exceeds the limit of ${MAX_AUDIO_DURATION_SECONDS} seconds.` }, 400);
-                }
-                console.log(`Audio duration check passed: ${metadata.format.duration?.toFixed(2)}s`);
+                 console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration ?? 'N/A'}`);
+                 // Duration check removed
             } catch (metaError: any) {
-                console.error(`Error reading audio metadata for ${soundFile.name}:`, metaError);
-                // Provide a more specific error message if parsing fails
-                return c.json({ error: `Could not read metadata from the provided audio file. It might be corrupted or in an unsupported format. Error: ${metaError.message || 'Unknown metadata error'}` }, 400);
+                 // Log error but don't reject the upload based on metadata parsing failure alone
+                console.warn(`Could not read metadata from audio file ${soundFile.name}. Allowing upload anyway. Error: ${metaError.message || 'Unknown metadata error'}`);
             }
         }
         // --- End File Validation ---
