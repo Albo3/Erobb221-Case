@@ -312,7 +312,10 @@ function CreateCaseForm() {
           // Normalize unlocked items proportionally
           let roundedSum = 0;
           const proportionallyNormalized = unlockedItems.map(item => {
-              const proportionalChance = (item.percentage_chance / currentUnlockedSum) * targetSumForUnlocked;
+              // Avoid division by zero if currentUnlockedSum is 0 (though handled earlier, belt-and-suspenders)
+              const proportionalChance = (currentUnlockedSum > 0)
+                  ? (item.percentage_chance / currentUnlockedSum) * targetSumForUnlocked
+                  : 0; // Assign 0 if current sum is 0
               const roundedChance = parseFloat(proportionalChance.toFixed(2));
               roundedSum += roundedChance;
               return {
@@ -321,22 +324,14 @@ function CreateCaseForm() {
               };
           });
 
-          // Distribute rounding difference
+          // Distribute rounding difference to the first unlocked item (simplified)
+          // The final check block below will handle ensuring the total is exactly 100.
           const difference = parseFloat((targetSumForUnlocked - roundedSum).toFixed(2));
           if (difference !== 0 && proportionallyNormalized.length > 0) {
               const firstUnlocked = proportionallyNormalized[0];
               if (firstUnlocked) { // Check existence
-                  let adjustedPerc = firstItem.percentage_chance + difference;
-                  firstItem.percentage_chance = parseFloat(Math.max(0, adjustedPerc).toFixed(2));
-
-                  // Simple secondary distribution if first adjustment went negative
-                  if (adjustedPerc < 0 && proportionallyNormalized.length > 1) {
-                      const secondUnlocked = proportionallyNormalized[1];
-                      if (secondUnlocked) {
-                           console.warn("Distributing rounding difference to the second item due to negative result on the first.");
-                           secondUnlocked.percentage_chance = parseFloat(Math.max(0, secondUnlocked.percentage_chance + adjustedPerc).toFixed(2));
-                      }
-                  }
+                  // Add difference and clamp at 0
+                  firstUnlocked.percentage_chance = parseFloat(Math.max(0, firstUnlocked.percentage_chance + difference).toFixed(2));
               }
           }
           normalizedUnlockedItems = proportionallyNormalized;
