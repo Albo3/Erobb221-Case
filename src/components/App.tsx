@@ -50,11 +50,11 @@ function App() {
     // Update sequence state based on volume
     if (newVolume === 0.99) {
       setSequenceState(1);
-      console.log("Sequence state set to 1 (volume correct)");
+      // console.log("Sequence state set to 1 (volume correct)");
     } else if (sequenceState === 1) {
       // Reset if volume changes away from 0.99 *after* being set correctly
       setSequenceState(0);
-      console.log("Sequence state reset to 0 (volume changed)");
+      // console.log("Sequence state reset to 0 (volume changed)");
     }
   };
 
