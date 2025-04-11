@@ -38,7 +38,14 @@ caseAdmin!
 │   └── index.html        # Base HTML template (copied to build)
 │   └── sounds/           # Base sounds (copied to build)
 ├── server/
-│   └── index.ts          # Hono backend server, API logic, DB setup, static file serving
+│   ├── index.ts          # Main Hono backend entry point, middleware setup, router mounting <!-- REFACTORED -->
+│   ├── constants.ts      # Shared constants (upload paths, limits, etc.) <!-- REFACTORED -->
+│   ├── db.ts             # Database initialization and migration logic <!-- REFACTORED -->
+│   ├── utils.ts          # Helper functions (file saving, validation) <!-- REFACTORED -->
+│   └── routes/           # API route definitions <!-- REFACTORED -->
+│       ├── itemTemplates.ts # Routes for /api/item-templates
+│       ├── cases.ts      # Routes for /api/cases
+│       └── admin.ts      # Routes for /api/verify-admin
 ├── src/
 │   ├── index.tsx         # Frontend entry point, React root render
 │   ├── config.ts         # Frontend configuration (API URL - conditional based on NODE_ENV) <!-- UPDATED -->
@@ -65,13 +72,13 @@ caseAdmin!
     ├── images/           # Uploaded images for item templates/cases
     └── sounds/           # Uploaded sounds for item templates
 
-## Database Schema (`database.sqlite` - v5)
+## Database Schema (`database.sqlite` - v6) <!-- UPDATED Version -->
 
-Managed via `server/index.ts` using `CREATE TABLE` and `ALTER TABLE` statements and a simple versioning system (`db_meta` table).
+Managed via `server/db.ts` using `CREATE TABLE` and `ALTER TABLE` statements and a simple versioning system (`db_meta` table). <!-- REFACTORED -->
 
 *   **`db_meta`**
     *   `key` (TEXT PRIMARY KEY): e.g., 'version'
-    *   `value` (TEXT): e.g., '5'
+    *   `value` (TEXT): e.g., '6' <!-- UPDATED Version -->
 *   **`item_templates`**
     *   `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
     *   `base_name` (TEXT NOT NULL UNIQUE): Base name for the template (e.g., "AK-47 Redline").
@@ -90,23 +97,30 @@ Managed via `server/index.ts` using `CREATE TABLE` and `ALTER TABLE` statements 
     *   `case_id` (INTEGER NOT NULL, FOREIGN KEY -> cases.id ON DELETE CASCADE)
     *   `item_template_id` (INTEGER NOT NULL, FOREIGN KEY -> item_templates.id ON DELETE CASCADE)
     *   `override_name` (TEXT): Optional name override for this specific instance (nullable).
-    *   `color` (TEXT NOT NULL): Rarity color specific to this instance in this case.
+    *   `percentage_chance` (REAL NOT NULL DEFAULT 0): Chance of getting this item (0-100). <!-- UPDATED v6 -->
+    *   `display_color` (TEXT NOT NULL DEFAULT '#808080'): Hex color code for display. <!-- UPDATED v6 -->
 
-## Backend API (`server/index.ts` on port 3001)
+## Backend API (Port 3001) <!-- REFACTORED -->
 
-*   Uses Hono framework.
-*   Provides CORS for configured origins (including `https://erobb221.live`). <!-- UPDATED -->
-*   Serves static files from `/uploads/*`.
-*   **`GET /api/item-templates`**: Returns a list of all item templates.
-*   **`POST /api/item-templates`**: Creates a new item template. Expects `multipart/form-data` with `base_name`, optional `rules_text`, optional `image_file`, optional `sound_file`, optional `existing_image_path`, optional `existing_sound_path`. Saves files, stores paths/text in DB.
-*   **`PUT /api/item-templates/:id`**: Updates an existing item template. Expects `multipart/form-data` similar to POST, plus optional `clear_image` and `clear_sound` flags. Handles file replacement/clearing and updates DB.
-*   **`GET /api/existing-assets`**: Returns distinct non-null `image_path` and `sound_path` values currently used in `item_templates`. Used for selection dropdowns in forms.
-*   **`GET /api/cases`**: Returns a list of all cases (`{ id, name, image_path }`).
-*   **`POST /api/cases`**: Creates a new case. Expects `multipart/form-data` with `name`, optional `description`, `items` (as a JSON string `[{ item_template_id, color, override_name? }]`), optional `image_file`, optional `existing_image_path`. Saves image file (if new), stores path in DB, creates case, and links items in `case_items`.
-*   **`PUT /api/cases/:id`**: Updates an existing case. Expects `multipart/form-data` similar to POST, plus optional `clear_image` flag. Handles image replacement/clearing, updates case details, and replaces item links in `case_items`.
-*   **`DELETE /api/cases/:id`**: Deletes a case and its linked items (via DB cascade). Also attempts to delete the associated case image file from storage.
-*   **`GET /api/cases/:id`**: Returns details for a specific case (including `image_path`), joining with `item_templates` to get the effective item details (`name`, `color`, `image_url`, `sound_url`, `rules`).
-*   **`POST /api/verify-admin`**: Expects JSON `{ "password": "attempt" }`. Compares the attempt against a stored bcrypt hash and returns `{ "success": true/false }`.
+*   Uses Hono framework. Logic is split into modules under `server/routes/`.
+*   Main setup in `server/index.ts` (middleware, router mounting).
+*   Database logic in `server/db.ts`. Constants in `server/constants.ts`. Helpers in `server/utils.ts`.
+*   Provides CORS for configured origins (including `https://erobb221.live`).
+*   Serves static files from `/uploads/*` via `server/index.ts`.
+*   **Item Template Routes (`server/routes/itemTemplates.ts` mounted at `/api/item-templates`)**
+    *   `GET /`: Returns a list of all item templates.
+    *   `POST /`: Creates a new item template. Expects `multipart/form-data` with `base_name`, optional `rules_text`, optional `image_file`, optional `sound_file`, optional `existing_image_path`, optional `existing_sound_path`. Saves files, stores paths/text in DB.
+    *   `PUT /:id`: Updates an existing item template. Expects `multipart/form-data` similar to POST, plus optional `clear_image` and `clear_sound` flags. Handles file replacement/clearing and updates DB.
+*   **Case Routes (`server/routes/cases.ts` mounted at `/api/cases`)**
+    *   `GET /`: Returns a list of all cases (`{ id, name, image_path }`).
+    *   `POST /`: Creates a new case. Expects `multipart/form-data` with `name`, optional `description`, `items` (as a JSON string `[{ item_template_id, percentage_chance, display_color, override_name? }]`), optional `image_file`, optional `existing_image_path`. Saves image file (if new), stores path in DB, creates case, and links items in `case_items`. <!-- UPDATED item structure -->
+    *   `PUT /:id`: Updates an existing case. Expects `multipart/form-data` similar to POST, plus optional `clear_image` flag. Handles image replacement/clearing, updates case details, and replaces item links in `case_items`. <!-- UPDATED item structure -->
+    *   `DELETE /:id`: Deletes a case and its linked items (via DB cascade). Also attempts to delete the associated case image file from storage.
+    *   `GET /:id`: Returns details for a specific case (including `image_path`), joining with `item_templates` to get the effective item details (`name`, `percentage_chance`, `display_color`, `image_url`, `sound_url`, `rules`). <!-- UPDATED item structure -->
+*   **Admin Route (`server/routes/admin.ts` mounted at `/api`)**
+    *   `POST /verify-admin`: Expects JSON `{ "password": "attempt" }`. Compares the attempt against a stored bcrypt hash and returns `{ "success": true/false }`.
+*   **Shared Asset Route (`server/index.ts`)**
+    *   `GET /api/existing-assets`: Returns distinct non-null `image_path` and `sound_path` values currently used in `item_templates`. Used for selection dropdowns in forms.
 
 ## Frontend Components
 
@@ -133,9 +147,10 @@ Managed via `server/index.ts` using `CREATE TABLE` and `ALTER TABLE` statements 
     *   Dynamically add/remove item rows. Each row allows:
         *   Selecting an existing `ItemTemplate` via dropdown.
         *   Entering an optional `override_name`.
-        *   Selecting a `color` (rarity) via dropdown.
-        *   Displays calculated weighted odds based on rarity distribution.
-    *   Handles submitting `multipart/form-data` (including image choice and items as JSON string) to `POST` or `PUT /api/cases`.
+        *   Entering `percentage_chance` (0-100). <!-- UPDATED v6 -->
+        *   Selecting `display_color` via color picker or input. <!-- UPDATED v6 -->
+        *   Displays calculated weighted odds based on rarity distribution (Note: Sum validation removed from backend).
+    *   Handles submitting `multipart/form-data` (including image choice and items as JSON string with `percentage_chance` and `display_color`) to `POST` or `PUT /api/cases`. <!-- UPDATED item structure -->
     *   Includes a "Delete Case" button (active when editing) with confirmation dialog, triggering `DELETE /api/cases/:id`.
 *   **`CaseOpener.tsx`**: (Main view or via Admin Mode Tab)
     *   Receives `volume`, `onVolumeChange`, `onNewUnbox` props from `App`.
@@ -143,9 +158,9 @@ Managed via `server/index.ts` using `CREATE TABLE` and `ALTER TABLE` statements 
         *   Grid items show case image (if available) filling the background, with name overlaid.
         *   Clicking a grid item selects the case.
     *   Displays selected case name and description (if description exists) above the reel.
-    *   Displays the case opening reel animation (items show image and larger, outlined text).
+    *   Displays the case opening reel animation (items show image and larger text with `display_color` outline/background). <!-- UPDATED -->
     *   Includes a larger "Open Case" button below the reel.
-    *   Displays the winning item details (name, image, rules) in a dedicated area *above* the reel after opening.
+    *   Displays the winning item details (name, image, rules, display_color) in a dedicated area *above* the reel after opening. <!-- UPDATED -->
     *   Calls `onNewUnbox` prop with the won item details.
     *   Plays item sound (if available) on win.
 *   **`WheelSpinner.tsx`**: Handles the visual spinning wheel logic and display. <!-- ADDED -->
@@ -169,9 +184,10 @@ Managed via `server/index.ts` using `CREATE TABLE` and `ALTER TABLE` statements 
 *   Admin mode toggle controls visibility of management tabs.
 *   Unbox history (last 15 items) is displayed in a side panel and persists in `localStorage`.
 *   Case deletion functionality added with confirmation.
-*   Admin mode toggle replaced with a puzzle/password mechanism (volume 99% -> click 'o' -> enter password).
-*   Database schema (v5) supports case images.
-*   File uploads (case images, item template images/sounds) are stored locally in the `uploads/` directory.
+    *   Admin mode toggle replaced with a puzzle/password mechanism (volume 99% -> click 'o' -> enter password).
+    *   Database schema (v6) supports case images, percentage chance, and display color. <!-- UPDATED Version -->
+    *   Backend server code refactored into modules (`constants.ts`, `db.ts`, `utils.ts`, `routes/`). <!-- ADDED -->
+    *   File uploads (case images, item template images/sounds) are stored locally in the `uploads/` directory.
 *   Backend validation added for uploads:
     *   Images: Max size 2MB, specific MIME types allowed.
     *   Audio: Max duration 15s, specific MIME types allowed.
