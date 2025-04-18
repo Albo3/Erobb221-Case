@@ -45,6 +45,36 @@ interface CaseItemState {
   isPercentageLocked: boolean; // Added for locking percentage
 }
 
+/** Counter-Strike rarity presets for % chance and color */
+const RARITY_PRESETS = [
+  {
+    label: 'Mil-Spec (Blue) – 79.92%',
+    percentage_chance: 79.92,
+    display_color: '#4b69ff',
+  },
+  {
+    label: 'Restricted (Purple) – 15.98%',
+    percentage_chance: 15.98,
+    display_color: '#8847ff',
+  },
+  {
+    label: 'Classified (Pink) – 3.20%',
+    percentage_chance: 3.20,
+    display_color: '#d32ce6',
+  },
+  {
+    label: 'Covert (Red) – 0.64%',
+    percentage_chance: 0.64,
+    display_color: '#eb4b4b',
+  },
+  {
+    label: 'Rare Special Item (Gold) – 0.26%',
+    percentage_chance: 0.26,
+    display_color: '#ffd700',
+  },
+];
+
+
 // Default color for new items
 const DEFAULT_ITEM_COLOR = '#808080'; // Grey
 
@@ -715,8 +745,33 @@ function CreateCaseForm() {
                     disabled={isSaving}
                  />
              </div>
-            {/* Percentage Input & Lock Checkbox Group - Updated for horizontal layout */}
-            <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'flex-end', gap: '5px' }}> {/* Allow flex, align items bottom, add gap */}
+            {/* Preset Dropdown + Percentage Input & Lock Checkbox Group */}
+            <div style={{ flex: '1 1 180px', display: 'flex', alignItems: 'flex-end', gap: '5px' }}>
+                {/* Preset Dropdown */}
+                <div style={{ flexBasis: '90px', flexShrink: 0 }}>
+                  <label htmlFor={`preset_select_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Preset:</label>
+                  <select
+                    id={`preset_select_${index}`}
+                    value=""
+                    onChange={e => {
+                      const preset = RARITY_PRESETS.find(p => p.label === e.target.value);
+                      if (preset) {
+                        handleItemChange(index, 'percentage_chance', preset.percentage_chance);
+                        handleItemChange(index, 'display_color', preset.display_color);
+                      }
+                    }}
+                    className="cs-input"
+                    style={{ width: '100%' }}
+                    disabled={isSaving}
+                  >
+                    <option value="">-- Preset --</option>
+                    {RARITY_PRESETS.map(preset => (
+                      <option key={preset.label} value={preset.label}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {/* Chance Input Container */}
                 <div style={{ flexGrow: 1 }}>
                     <label htmlFor={`percentage_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Chance (%):</label>
@@ -726,16 +781,16 @@ function CreateCaseForm() {
                         value={item.percentage_chance}
                         onChange={(e) => handleItemChange(index, 'percentage_chance', e.target.value)}
                         min="0"
-                        step="0.01" // Allow decimals
+                        step="0.01"
                         placeholder="e.g., 10.5"
                         className="cs-input"
-                        style={{ width: '100%' }} // Input fills its container
+                        style={{ width: '100%' }}
                         required
-                        disabled={isSaving || item.isPercentageLocked} // Disable if locked
+                        disabled={isSaving || item.isPercentageLocked}
                     />
                 </div>
-                 {/* Lock Checkbox Container - Positioned next to input */}
-                 <div style={{ flexShrink: 0, paddingBottom: '5px' }}> {/* Prevent shrinking, add padding to align with input bottom */}
+                 {/* Lock Checkbox Container */}
+                 <div style={{ flexShrink: 0, paddingBottom: '5px' }}>
                      <input
                          type="checkbox"
                          id={`lock_perc_${index}`}
