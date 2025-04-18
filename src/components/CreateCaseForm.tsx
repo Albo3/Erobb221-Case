@@ -45,31 +45,31 @@ interface CaseItemState {
   isPercentageLocked: boolean; // Added for locking percentage
 }
 
-/** Counter-Strike rarity presets for % chance and color */
+/** Counter-Strike rarity presets for color (percentage is now dynamic) */
 const RARITY_PRESETS = [
   {
-    label: 'Mil-Spec (Blue) – 79.92%',
-    percentage_chance: 79.92,
+    label: 'Mil-Spec (Blue) – Dynamic %',
+    // percentage_chance: 79.92, // Removed static percentage
     display_color: '#4b69ff',
   },
   {
-    label: 'Restricted (Purple) – 15.98%',
-    percentage_chance: 15.98,
+    label: 'Restricted (Purple) – Dynamic %',
+    // percentage_chance: 15.98, // Removed static percentage
     display_color: '#8847ff',
   },
   {
-    label: 'Classified (Pink) – 3.20%',
-    percentage_chance: 3.20,
+    label: 'Classified (Pink) – Dynamic %',
+    // percentage_chance: 3.20, // Removed static percentage
     display_color: '#d32ce6',
   },
   {
-    label: 'Covert (Red) – 0.64%',
-    percentage_chance: 0.64,
+    label: 'Covert (Red) – Dynamic %',
+    // percentage_chance: 0.64, // Removed static percentage
     display_color: '#eb4b4b',
   },
   {
-    label: 'Rare Special Item (Gold) – 0.26%',
-    percentage_chance: 0.26,
+    label: 'Rare Special Item (Gold) – Dynamic %',
+    // percentage_chance: 0.26, // Removed static percentage
     display_color: '#ffd700',
   },
 ];
@@ -754,10 +754,19 @@ function CreateCaseForm() {
                     id={`preset_select_${index}`}
                     value=""
                     onChange={e => {
-                      const preset = RARITY_PRESETS.find(p => p.label === e.target.value);
+                      const selectedLabel = e.target.value;
+                      const preset = RARITY_PRESETS.find(p => p.label === selectedLabel);
                       if (preset) {
-                        handleItemChange(index, 'percentage_chance', preset.percentage_chance);
+                        // Calculate dynamic percentage based on current number of items
+                        const numItems = items.length;
+                        const dynamicPercentage = numItems > 0 ? parseFloat((100 / numItems).toFixed(2)) : 100; // Default to 100 if 0 items (shouldn't happen)
+
+                        // Apply dynamic percentage and color
+                        handleItemChange(index, 'percentage_chance', dynamicPercentage);
                         handleItemChange(index, 'display_color', preset.display_color);
+
+                        // Reset the dropdown visually after selection (optional but good UX)
+                        e.target.value = "";
                       }
                     }}
                     className="cs-input"
