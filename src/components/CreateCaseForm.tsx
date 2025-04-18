@@ -45,31 +45,31 @@ interface CaseItemState {
   isPercentageLocked: boolean; // Added for locking percentage
 }
 
-/** Counter-Strike rarity presets for color (percentage is now dynamic) */
+/** Counter-Strike rarity presets for color and base percentage chance */
 const RARITY_PRESETS = [
   {
-    label: 'Mil-Spec (Blue) – Dynamic %',
-    // percentage_chance: 79.92, // Removed static percentage
+    label: 'Mil-Spec (Blue) – Base 79.92%',
+    base_percentage_chance: 79.92, // Restored base percentage
     display_color: '#4b69ff',
   },
   {
-    label: 'Restricted (Purple) – Dynamic %',
-    // percentage_chance: 15.98, // Removed static percentage
+    label: 'Restricted (Purple) – Base 15.98%',
+    base_percentage_chance: 15.98, // Restored base percentage
     display_color: '#8847ff',
   },
   {
-    label: 'Classified (Pink) – Dynamic %',
-    // percentage_chance: 3.20, // Removed static percentage
+    label: 'Classified (Pink) – Base 3.20%',
+    base_percentage_chance: 3.20, // Restored base percentage
     display_color: '#d32ce6',
   },
   {
-    label: 'Covert (Red) – Dynamic %',
-    // percentage_chance: 0.64, // Removed static percentage
+    label: 'Covert (Red) – Base 0.64%',
+    base_percentage_chance: 0.64, // Restored base percentage
     display_color: '#eb4b4b',
   },
   {
-    label: 'Rare Special Item (Gold) – Dynamic %',
-    // percentage_chance: 0.26, // Removed static percentage
+    label: 'Rare Special Item (Gold) – Base 0.26%',
+    base_percentage_chance: 0.26, // Restored base percentage
     display_color: '#ffd700',
   },
 ];
@@ -757,15 +757,33 @@ function CreateCaseForm() {
                       const selectedLabel = e.target.value;
                       const preset = RARITY_PRESETS.find(p => p.label === selectedLabel);
                       if (preset) {
-                        // Calculate dynamic percentage based on current number of items
-                        const numItems = items.length;
-                        const dynamicPercentage = numItems > 0 ? parseFloat((100 / numItems).toFixed(2)) : 100; // Default to 100 if 0 items (shouldn't happen)
+                        // Calculate the sum of current percentages, substituting the preset's base for the selected item
+                        let tempTotalPercentage = 0;
+                        items.forEach((item, i) => {
+                            if (i === index) {
+                                tempTotalPercentage += preset.base_percentage_chance;
+                            } else {
+                                tempTotalPercentage += (item.percentage_chance || 0); // Use 0 if undefined/NaN
+                            }
+                        });
 
-                        // Apply dynamic percentage and color
-                        handleItemChange(index, 'percentage_chance', dynamicPercentage);
+                        // Calculate the dynamic percentage based on proportion
+                        let dynamicPercentage = 0;
+                        if (tempTotalPercentage > 0) {
+                            const proportion = preset.base_percentage_chance / tempTotalPercentage;
+                            dynamicPercentage = parseFloat((proportion * 100).toFixed(2));
+                        } else if (items.length > 0) {
+                             // Handle edge case: if total is 0, distribute equally (or assign 100 if only one item)
+                             dynamicPercentage = parseFloat((100 / items.length).toFixed(2));
+                        } else {
+                            dynamicPercentage = 100; // Should not happen with >= 1 item rule
+                        }
+
+                        // Apply the calculated dynamic percentage and color
+                        handleItemChange(index, 'percentage_chance', Math.max(0, dynamicPercentage)); // Ensure non-negative
                         handleItemChange(index, 'display_color', preset.display_color);
 
-                        // Reset the dropdown visually after selection (optional but good UX)
+                        // Reset the dropdown visually after selection
                         e.target.value = "";
                       }
                     }}
