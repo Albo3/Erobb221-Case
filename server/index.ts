@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { logger } from 'hono/logger'; // Import the logger middleware
 import { serveStatic } from 'hono/bun'; // Import serveStatic for serving files
 import { db } from './db'; // Import the initialized db instance
 
@@ -12,6 +13,9 @@ import adminApp from './routes/admin';
 const app = new Hono();
 
 // --- Middleware ---
+// Logger - Apply to all routes
+app.use('*', logger());
+
 // CORS for API routes - Apply to all /api/* paths
 app.use('/api/*', cors({
   origin: ['http://localhost:3000', 'https://erobb221.live', 'https://www.erobb221.live'], // Explicitly allow dev and prod origins
