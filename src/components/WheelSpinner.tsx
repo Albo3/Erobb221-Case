@@ -525,6 +525,13 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
               {/* Wheel Visual Container */}
               <div className="wheel-visual-container" style={{ width: `${WHEEL_SIZE}px`, height: `${WHEEL_SIZE}px` }}>
+                  {/* Center Image */}
+                  <img 
+                      src={getApiUrl('/uploads/images/emonbag.webp')} 
+                      alt="Wheel Center" 
+                      className="wheel-center-image" 
+                      onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
+                  />
                   <div className="wheel-marker"></div>
                   <div
                       ref={wheelRef}
