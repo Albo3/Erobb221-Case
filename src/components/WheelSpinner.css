@@ -44,6 +44,10 @@
   background-color: var(--secondary-bg); /* Base background */
 }
 
+/* Removed the radial overlay */
+
+/* Removed the radial lines */
+
 /* Remove old/unused segment styles */
 /* .wheel-segment { ... } */
 /* .segment-content { ... } */
@@ -57,6 +61,7 @@
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     /* This layer rotates with the main wheel */
+    z-index: 3; /* Ensure text is above the border lines */
 }
 
 /* Style for individual text items */
@@ -66,21 +71,28 @@
     color: var(--text);
     text-shadow: 1px 1px 0 var(--border-dark);
     white-space: nowrap; /* Prevent wrapping */
+    z-index: 3; /* Ensure text is above the border lines */
 }
 
 .segment-name {
   /* Styles for the inner span containing the text */
-  display: inline-block; /* Needed for background and padding */
-  padding: 2px 5px;
-  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent dark background */
+  display: inline-block; /* Needed for padding */
+  padding: 3px 6px;
+  background-color: rgba(0, 0, 0, 0.8); /* Darker background for better readability */
   border-radius: 3px;
-  font-size: 0.9em;
   font-weight: bold;
   /* Color is applied inline based on item.color */
-  word-break: break-word;
+  word-break: keep-all; /* Prevent breaking words */
   line-height: 1.1;
   /* Ensure text shadow is still visible */
   text-shadow: 1px 1px 0 var(--border-dark);
+  z-index: 3; /* Ensure text is above the border lines */
+  border: 1px solid rgba(255, 255, 255, 0.3); /* Slightly more visible border */
+  max-width: 80px; /* Smaller max-width to prevent overlap */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Add a subtle glow effect to make text stand out more */
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
 }
 
 

@@ -217,10 +217,6 @@ function App() {
           )}
         </div>
 
-        {/* Footer */}
-        <footer style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9em', color: 'var(--text-3)' }}>
-          <p>&copy; {new Date().getFullYear()} Erobb221 Cases. Built with Bun, React, and TypeScript.</p>
-        </footer>
       </div> {/* Close Centered Content Wrapper */}
 
       {/* Absolutely Positioned Rules Panel (Left) - Using CSS class */}

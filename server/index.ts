@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger'; // Import the logger middleware
+import { logger } from 'hono/logger'; // Re-import the default logger
 import { serveStatic } from 'hono/bun'; // Import serveStatic for serving files
 import { db } from './db'; // Import the initialized db instance
 
@@ -13,7 +13,7 @@ import adminApp from './routes/admin';
 const app = new Hono();
 
 // --- Middleware ---
-// Logger - Apply to all routes
+// Logger - Apply to all routes using the default logger
 app.use('*', logger());
 
 // CORS for API routes - Apply to all /api/* paths

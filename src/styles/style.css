@@ -1,6 +1,7 @@
 :root {
     --bg: #4a5942;
     --secondary-bg: #3e4637;
+    --tertiary-bg: #5c6b54; /* Added a third shade of green */
 
     --accent: #c4b550;
     --secondary-accent: #958831;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react'; // Import useMemo
 import StyledButton from './StyledButton';
 import { getApiUrl } from '../config'; // Import the helper
 import './WheelSpinner.css';
@@ -32,79 +32,148 @@ interface CaseData {
 }
 
 
-// Helper function to generate conic gradient string based on percentage_chance
-const generateConicGradient = (items: CaseItem[] | null): string => {
-    if (!items || items.length === 0) {
+// Shared function to calculate segment angles with minimum size enforcement
+const calculateSegmentAngles = (items: CaseItem[]): {
+    startAngles: number[],
+    angleSpans: number[],
+    totalAngle: number
+} => {
+    const validItems = items.filter((item): item is CaseItem => item !== null && item !== undefined);
+
+    if (validItems.length === 0) {
+        return { startAngles: [], angleSpans: [], totalAngle: 360 };
+    }
+
+    const totalPercentage = validItems.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+
+    if (totalPercentage <= 0) {
+        // Equal distribution fallback
+        const anglePerItem = 360 / validItems.length;
+        const startAngles = validItems.map((_, index) => index * anglePerItem);
+        const angleSpans = validItems.map(() => anglePerItem);
+        return { startAngles, angleSpans, totalAngle: 360 };
+    }
+
+    // Calculate initial angles based on percentage_chance
+    let initialAngles = validItems.map(item => ((item.percentage_chance || 0) / totalPercentage) * 360);
+
+    // --- Minimum Angle Adjustment Logic ---
+    const minAngle = 18; // 5% of 360 degrees
+    let adjustedAngles = [...initialAngles];
+    let totalAngle = 360;
+    let deficit = 0;
+    let surplusPoolIndices: number[] = [];
+    let totalSurplusAngle = 0;
+
+    // First pass: Identify segments below minimum and calculate deficit
+    for (let i = 0; i < adjustedAngles.length; i++) {
+        // Add non-null assertion for read operations
+        if (adjustedAngles[i]! < minAngle) {
+            deficit += minAngle - adjustedAngles[i]!;
+             adjustedAngles[i] = minAngle; // Assignment is okay
+         } else {
+             surplusPoolIndices.push(i);
+             // Add non-null assertion for read operation
+             totalSurplusAngle += adjustedAngles[i]! - minAngle; // Only count surplus above minAngle
+         }
+     }
+
+    // Second pass: Distribute deficit proportionally among segments above minimum
+    if (deficit > 0 && totalSurplusAngle > 0) {
+        // Check if we can cover the deficit
+        if (totalSurplusAngle >= deficit) {
+            for (const index of surplusPoolIndices) {
+                // Add non-null assertions for read operations
+                const originalSurplus = initialAngles[index]! - minAngle; // Use initial angle for proportion
+                const reduction = (originalSurplus / totalSurplusAngle) * deficit;
+                // Use explicit assignment with assertion for the read part
+                adjustedAngles[index] = adjustedAngles[index]! - reduction;
+                // Ensure reduction doesn't push the segment below minAngle
+                if (adjustedAngles[index]! < minAngle) {
+                    // This case is complex, might need iterative adjustments.
+                    // For now, clamp to minAngle and recalculate deficit/surplus if needed.
+                    // Simplified: Clamp and accept minor total angle deviation if this happens.
+                    console.warn(`Segment ${index} fell below minimum during adjustment. Clamping.`);
+                    adjustedAngles[index] = minAngle;
+                }
+            }
+        } else {
+            // Cannot cover deficit while maintaining minimums for others.
+            // This implies the sum of minimum angles exceeds 360, which shouldn't happen if minAngle * count <= 360.
+            // Fallback: Set all surplus pool items to minAngle and accept the total angle deviation.
+            console.warn("Cannot fully cover deficit while maintaining minimums. Total angle might deviate slightly.");
+            for (const index of surplusPoolIndices) {
+                adjustedAngles[index] = minAngle;
+            }
+        }
+    } else if (deficit > 0 && totalSurplusAngle <= 0) {
+        // All items are below or at minimum, cannot adjust. Use equal distribution.
+        console.warn("All items at or below minimum angle. Using equal distribution.");
+        const anglePerItem = 360 / validItems.length;
+        adjustedAngles = validItems.map(() => anglePerItem);
+    }
+
+    // Normalize angles to ensure they sum exactly to 360 due to potential floating point inaccuracies
+    const currentSum = adjustedAngles.reduce((sum, angle) => sum + angle, 0);
+    const normalizationFactor = 360 / currentSum;
+    const finalAngleSpans = adjustedAngles.map(angle => angle * normalizationFactor);
+
+    // Calculate final start angles based on adjusted spans
+    const finalStartAngles: number[] = [];
+    let currentAngle = 0;
+    for (let i = 0; i < finalAngleSpans.length; i++) {
+        finalStartAngles.push(currentAngle);
+        // Add non-null assertion for read operation
+        currentAngle += finalAngleSpans[i]!;
+    }
+
+    // console.log("Final Angles:", { finalStartAngles, finalAngleSpans }); // Debugging
+    return { startAngles: finalStartAngles, angleSpans: finalAngleSpans, totalAngle: 360 };
+};
+
+// Helper function to generate conic gradient string based on the *final* items used for display
+// Now accepts the deduplicated list directly
+const generateConicGradient = (displayItems: CaseItem[]): string => {
+    if (!displayItems || displayItems.length === 0) {
         return 'conic-gradient(var(--secondary-bg) 0deg 360deg)'; // Fallback
     }
 
-    // Use percentage_chance for segment size calculation
-    const totalPercentage = items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
+    // No need to filter again, displayItems is already filtered/deduplicated
 
-    // If total percentage is 0 or invalid, create an equal distribution fallback
-    if (totalPercentage <= 0) {
-        console.warn("Total percentage is zero or less, generating fallback gradient.");
-        const anglePerItem = 360 / items.length;
-        let fallbackGradient = 'conic-gradient(';
-        const borderThickness = 0.2;
-        const borderColor = 'var(--border-dark)';
-        const color1 = 'var(--bg)';
-        const color2 = 'var(--secondary-bg)';
-        let currentAngle = 0;
-        items.forEach((_, index) => {
-            const segmentColor = index % 2 === 0 ? color1 : color2;
-            if (currentAngle > 0) {
-                fallbackGradient += `${borderColor} ${currentAngle}deg ${currentAngle + borderThickness}deg, `;
-                currentAngle += borderThickness;
+    // Use shared angle calculation with the displayItems
+    const { startAngles, angleSpans } = calculateSegmentAngles(displayItems);
+    
+    // Build the gradient parts
+    const gradientParts: string[] = [];
+    const colors = ['#4a6741', '#5a7a4e', '#6b8e5c']; // Darker, Medium, Lighter green
+
+    for (let i = 0; i < displayItems.length; i++) { // Iterate over displayItems
+        let segmentColorIndex = i % colors.length;
+
+        // --- Edge Case Check: Prevent first and last segments having the same color ---
+        if (i === displayItems.length - 1 && displayItems.length > 1) { // Check only if more than 1 segment
+            const firstSegmentColorIndex = 0 % colors.length; // Always 0
+            const lastSegmentColorIndex = (displayItems.length - 1) % colors.length;
+            if (lastSegmentColorIndex === firstSegmentColorIndex) {
+                // If last color is same as first, force it to the next color in the cycle
+                segmentColorIndex = (lastSegmentColorIndex + 1) % colors.length;
+                console.log(`Adjusting last segment color to index ${segmentColorIndex} to avoid matching first segment.`);
             }
-            const segmentEndAngle = currentAngle + Math.max(anglePerItem - borderThickness, 0.1);
-            fallbackGradient += `${segmentColor} ${currentAngle}deg ${segmentEndAngle}deg`;
-            currentAngle = segmentEndAngle;
-            if (index < items.length - 1) fallbackGradient += ', ';
-        });
-         if (currentAngle < 359.9) fallbackGradient += `, ${borderColor} ${currentAngle}deg 360deg`;
-        fallbackGradient += ')';
-        return fallbackGradient;
+        }
+        // --- End Edge Case Check ---
+
+        const segmentColor = colors[segmentColorIndex];
+
+        // Segment angles - ensure we have valid values with defaults
+        const startAngle = startAngles[i] || 0;
+        const angleSpan = angleSpans[i] || 0;
+        const endAngle = startAngle + angleSpan;
+
+        gradientParts.push(`${segmentColor} ${startAngle}deg ${endAngle}deg`);
     }
 
-    // Generate gradient based on actual percentages
-    let gradientString = 'conic-gradient(';
-    let currentAngle = 0;
-    const borderThickness = 0.2; // Degrees for the border line
-    const borderColor = 'var(--border-dark)';
-    const color1 = 'var(--bg)';
-    const color2 = 'var(--secondary-bg)';
-
-    items.forEach((item, index) => {
-        const percentage = item.percentage_chance || 0;
-        // Calculate angle span based on percentage relative to the *actual* total sum
-        // This handles cases where the sum isn't exactly 100
-        const angleSpan = (percentage / totalPercentage) * 360;
-        const segmentColor = index % 2 === 0 ? color1 : color2; // Alternate colors
-
-        // Start border (unless it's the very first segment at 0deg)
-        if (currentAngle > 0.1) { // Use small tolerance for floating point
-            gradientString += `${borderColor} ${currentAngle}deg ${currentAngle + borderThickness}deg, `;
-            currentAngle += borderThickness;
-        }
-
-        // Segment color
-        const segmentEndAngle = currentAngle + Math.max(angleSpan - borderThickness, 0.1); // Ensure positive span, account for border
-        gradientString += `${segmentColor} ${currentAngle}deg ${segmentEndAngle}deg`;
-
-        currentAngle = segmentEndAngle; // Update angle for the next border/segment
-
-        if (index < items.length - 1) {
-             gradientString += ', ';
-        }
-    });
-
-     // Fill any remaining tiny gap (less than border thickness) with border color
-     if (currentAngle < 359.9) {
-         gradientString += `, ${borderColor} ${currentAngle}deg 360deg`;
-     }
-
-    gradientString += ')';
+    // Join parts into the final gradient string
+    const gradientString = `conic-gradient(${gradientParts.join(', ')})`;
     return gradientString;
 };
 
@@ -132,6 +201,20 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
   const [targetRotation, setTargetRotation] = useState(0);
   const wheelRef = useRef<HTMLDivElement>(null);
+
+  // --- Create a memoized list of unique items for rendering ---
+  const uniqueDisplayItems = useMemo(() => {
+    if (!currentCaseData?.items) return [];
+    // Filter out null/undefined first
+    const validItems = currentCaseData.items.filter((item): item is CaseItem => item !== null && item !== undefined);
+    // Then filter for uniqueness based on name and color
+    return validItems.filter((item, index, self) =>
+        index === self.findIndex(i =>
+            i.name === item.name && i.display_color === item.display_color
+        )
+    );
+  }, [currentCaseData]);
+  // --- End of memoized list ---
 
   // Fetch available cases
   useEffect(() => {
@@ -179,15 +262,15 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
               if (!data || !Array.isArray(data.items)) {
                    throw new Error("Invalid case data received.");
               }
-              // No need to add weight, data already has percentage_chance
-              // Shuffle the items array (Fisher-Yates algorithm) - Keep shuffling for visual variety
-              const shuffledItems = [...data.items]; // Create a copy to shuffle
-              for (let i = shuffledItems.length - 1; i > 0; i--) {
-                  const j = Math.floor(Math.random() * (i + 1));
-                  [shuffledItems[i], shuffledItems[j]] = [shuffledItems[j], shuffledItems[i]];
-              }
-
-              setCurrentCaseData({ ...data, items: shuffledItems }); // Set shuffled items
+              // Filter out any null or undefined items
+              const validItems = data.items.filter((item): item is CaseItem => 
+                  item !== null && item !== undefined
+              );
+              
+              // Don't shuffle the items - keep them in original order for consistent positioning
+              console.log("Setting case data with", validItems.length, "valid items");
+              
+              setCurrentCaseData({ ...data, items: validItems }); // Set valid items without shuffling
               setWonItem(null);
               if (wheelRef.current) {
                   wheelRef.current.style.transition = 'none';
@@ -222,7 +305,9 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
       if (totalPercentageSum <= 0) {
           console.warn("Total percentage sum is zero or less, returning first item as fallback.");
-          return items[0] ?? null; // Fallback to first item if percentages are invalid
+          // Use type assertion to tell TypeScript we're sure this is a CaseItem
+          const firstItem = items[0];
+          return firstItem ? firstItem : null; // Fallback to first item if percentages are invalid
       }
 
       let randomNum = Math.random() * totalPercentageSum; // Random number between 0 and total sum
@@ -236,15 +321,18 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
       }
 
       // Fallback in case of floating point issues or unexpected scenarios
-      console.warn("Random selection fallback triggered, returning last item.");
-      // Explicitly handle potential undefined return from array access to satisfy TS
-      const lastItem = items[items.length - 1];
-      if (lastItem === undefined) {
-          // This case should be logically impossible due to checks above
-          console.error("getRandomItem fallback reached impossible state: lastItem is undefined.");
-          return null;
+      console.warn("Random selection fallback triggered, returning first valid item.");
+      
+      // Find the first non-null item in the array
+      for (const item of items) {
+          if (item) {
+              return item; // Return the first valid item
+          }
       }
-      return lastItem; // Now guaranteed to be CaseItem
+      
+      // If we somehow got here with no valid items (should be impossible given earlier checks)
+      console.error("getRandomItem fallback reached impossible state: no valid items found.");
+      return null;
   };
 
   // Handle Spin Action
@@ -281,77 +369,44 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         setError("Could not determine winning item."); setIsSpinning(false); return;
     }
 
-    // Calculate Rotation based on Percentage Segments
-    const totalPercentage = currentCaseData.items.reduce((sum, item) => sum + (item.percentage_chance || 0), 0);
-    if (totalPercentage <= 0) {
-        setError("Cannot calculate rotation: total percentage is zero or less.");
+    // --- Calculate Rotation based on the VISUAL segments (unique items, adjusted angles) ---
+    // 1. Get the adjusted angles based on the unique items being displayed
+    const { startAngles: visualStartAngles, angleSpans: visualAngleSpans } = calculateSegmentAngles(uniqueDisplayItems);
+
+    // 2. Find the index of the winning item within the unique display list
+    const winningItemIndexInUniqueList = uniqueDisplayItems.findIndex(item =>
+        item.name === winningItem.name && item.display_color === winningItem.display_color
+        // Note: This assumes the first match in the unique list corresponds to the won item.
+        // This is generally safe if getRandomItem selects based on original list order and
+        // uniqueDisplayItems preserves the relative order of the first occurrences.
+    );
+
+    if (winningItemIndexInUniqueList === -1) {
+        // This should ideally not happen if winningItem came from currentCaseData
+        setError("Could not find winning item in the unique display list for rotation calculation.");
+        console.error("Mismatch between winningItem and uniqueDisplayItems", winningItem, uniqueDisplayItems);
         setIsSpinning(false);
         return;
     }
 
-    let cumulativeAngle = 0;
+    // 3. Get the visual start angle and span for the winning segment
     let winningSegmentStartAngle = 0;
     let winningSegmentAngleSpan = 0;
-    let foundWinningSegment = false;
 
-    // Find the angle range for the winning item
-    for (let i = 0; i < currentCaseData.items.length; i++) {
-        const item = currentCaseData.items[i];
-        if (!item) continue; // Skip if item is somehow undefined
-        const percentage = item.percentage_chance || 0;
-        const angleSpan = (percentage / totalPercentage) * 360;
+    // Use the index found in the unique list to get the corresponding visual angles
+    winningSegmentStartAngle = visualStartAngles[winningItemIndexInUniqueList]!;
+    winningSegmentAngleSpan = visualAngleSpans[winningItemIndexInUniqueList]!;
 
-        // Check if this is the winning item (match name and color for uniqueness if needed, or just name if sufficient)
-        // Using name and display_color for better matching potential
-        if (item.name === winningItem.name && item.display_color === winningItem.display_color) {
-            // Check if this specific instance is the winner (if multiple items have same name/color)
-            // This requires comparing the actual object reference if possible, or relying on the first match
-            // For simplicity, we'll assume the first match found in the loop is the target
-            // (This works because getRandomItem returns a specific item instance from the array)
-            // A more robust way might involve unique IDs if items weren't shuffled, but shuffling makes this tricky.
-            // Let's rely on the first match by name and color.
-            if (!foundWinningSegment) { // Take the first match
-                 winningSegmentStartAngle = cumulativeAngle;
-                 winningSegmentAngleSpan = angleSpan;
-                 foundWinningSegment = true;
-                 // Don't break here if multiple identical items exist, let loop finish to calculate full cumulativeAngle correctly
-                 // break; // Removed break
-            }
-        }
-        cumulativeAngle += angleSpan;
-    }
-
-     // If segment wasn't found by name+color (shouldn't happen if getRandomItem worked), fallback to name only
-     if (!foundWinningSegment) {
-         console.warn("Could not find exact winning segment by name+color, using first match by name.");
-         cumulativeAngle = 0; // Reset cumulative angle for fallback search
-         for (let i = 0; i < currentCaseData.items.length; i++) {
-             const item = currentCaseData.items[i];
-             if (!item) continue;
-             const percentage = item.percentage_chance || 0;
-             const angleSpan = (percentage / totalPercentage) * 360;
-             if (item.name === winningItem.name) {
-                 winningSegmentStartAngle = cumulativeAngle;
-                 winningSegmentAngleSpan = angleSpan;
-                 foundWinningSegment = true;
-                 // break; // Removed break
-             }
-             cumulativeAngle += angleSpan;
-         }
-     }
-
-     // Final check if we still couldn't find it
-     if (!foundWinningSegment) {
-         setError("Could not calculate winning angle even with fallback."); setIsSpinning(false); return;
-     }
-
+    // 4. Calculate the target rotation to center the marker in the middle of the VISUAL segment
     const targetAngle = -(winningSegmentStartAngle + winningSegmentAngleSpan / 2);
     const fullSpins = 5;
     const currentRotation = targetRotation;
+    // Apply random offset based on the VISUAL angle span
     const randomOffset = (Math.random() - 0.5) * (winningSegmentAngleSpan * 0.8);
     const finalTargetAngle = targetAngle + randomOffset;
     const rotationDifference = (360 * fullSpins + finalTargetAngle) - (currentRotation % 360);
     const finalRotation = currentRotation + rotationDifference;
+    // --- End of visual rotation calculation ---
 
     setTargetRotation(finalRotation);
 
@@ -361,7 +416,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         wheelRef.current.style.transform = `rotate(${finalRotation}deg)`;
     }
 
-    // Set timeout for results
+    // Set timeout for results // <<< Restoring this block
     setTimeout(() => {
         setWonItem(winningItem);
         onNewUnbox(winningItem);
@@ -381,49 +436,58 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                 newItemAudio.onended = () => { itemAudioRef.current = null; };
             } catch (e) { console.error("Error creating item audio:", e); itemAudioRef.current = null; }
         }
-    }, SPIN_DURATION_WHEEL);
-  };
+    }, SPIN_DURATION_WHEEL); // <<< End of restored block
 
-  // Helper to calculate position and rotation for item text based on percentage
-  const getItemStyle = (index: number, items: CaseItem[]): React.CSSProperties => {
-    if (!items || index < 0 || index >= items.length || !items[index]) {
+  }; // <<< Restoring closing brace for handleSpin
+
+  // Helper to calculate position and rotation for item text
+  // Now accepts the index relative to the uniqueDisplayItems list
+  const getItemStyle = (index: number): React.CSSProperties => {
+    // Use the memoized uniqueDisplayItems list
+    if (!uniqueDisplayItems || index < 0 || index >= uniqueDisplayItems.length || !uniqueDisplayItems[index]) {
         return {};
     }
-    // Use percentage_chance for angle calculation
-    const totalPercentage = items.reduce((sum, item) => sum + (item?.percentage_chance || 0), 0);
-    if (totalPercentage <= 0) return {}; // Avoid division by zero
 
-    let cumulativeAngle = 0;
-    for (let i = 0; i < index; i++) {
-        const item = items[i];
-        if (item) {
-            cumulativeAngle += ((item.percentage_chance || 0) / totalPercentage) * 360;
-        }
-    }
+    // Use the shared angle calculation with the *same unique list* to ensure alignment
+    const { startAngles, angleSpans } = calculateSegmentAngles(uniqueDisplayItems);
 
-    const currentItem = items[index];
-    const currentItemPercentage = currentItem.percentage_chance || 0;
-    const angleSpan = (currentItemPercentage / totalPercentage) * 360;
-    const itemAngle = cumulativeAngle + angleSpan / 2; // Angle to the center of the segment
+    // Get the angles for this specific item from the calculated angles based on the unique list
+    const startAngle = startAngles[index]!; // Use non-null assertion as index is validated
+    const angleSpan = angleSpans[index]!; // Use non-null assertion
 
-    const radius = WHEEL_SIZE * 0.38; // Adjust distance from center
-    const angleRad = itemAngle * Math.PI / 180;
+    
+    // Calculate the exact center angle of this segment
+    const centerAngle = startAngle + (angleSpan / 2);
+    
+    // Use a fixed radius for consistent positioning
+    // Slightly smaller radius to ensure text stays within segment
+    const radius = WHEEL_SIZE * 0.35;
+    
+    // Calculate position based on center angle and radius
+    const angleRad = centerAngle * Math.PI / 180;
     const x = 50 + (radius / (WHEEL_SIZE / 100)) * Math.sin(angleRad);
     const y = 50 - (radius / (WHEEL_SIZE / 100)) * Math.cos(angleRad);
 
-    // Rotate text container to align tangentially
-    const textRotation = itemAngle + 90;
+    // Rotate text to align with the segment
+    // For segments on the bottom half, flip text 180 degrees to keep it readable
+    const textRotation = centerAngle > 90 && centerAngle < 270 ? centerAngle + 180 : centerAngle;
+
+    // Calculate font size based on segment size
+    // Smaller segments get smaller font
+    const fontSize = angleSpan < 20 ? '0.65em' : angleSpan < 40 ? '0.75em' : '0.85em';
 
     return {
         position: 'absolute',
         left: `${x}%`,
         top: `${y}%`,
-        transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center element and rotate container
+        transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center and rotate
         width: 'auto',
         textAlign: 'center',
-        // Apply background via CSS class '.segment-name'
         whiteSpace: 'nowrap',
         pointerEvents: 'none', // Prevent text from interfering with clicks
+        fontSize: fontSize,
+        // Add a debug outline to see the positioning (can be removed later)
+        // outline: '1px solid rgba(255, 255, 255, 0.2)',
     };
   };
 
@@ -466,22 +530,26 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                       ref={wheelRef}
                       className="wheel-graphic"
                       style={{
-                          background: generateConicGradient(currentCaseData.items), // Use weighted gradient
+                          background: generateConicGradient(uniqueDisplayItems), // Use unique items for gradient
                       }}
                   >
                       {/* Item Text Layer */}
                       <div className="wheel-item-texts">
-                          {currentCaseData.items.map((item, index) => (
-                              item ? (
-                                  // Apply style directly to the container div
-                                  <div key={`item-${item.item_template_id || index}-${Math.random()}`} className="wheel-item-text" style={getItemStyle(index, currentCaseData.items)}>
-                                      {/* Text itself doesn't need extra span or style now */}
-                                      {/* Use display_color for the text color */}
-                                      <span className="segment-name" style={{ color: item.display_color }}>
+                          {/* Map over the uniqueDisplayItems directly */}
+                          {uniqueDisplayItems.map((item, index) => (
+                              // No need for item check as uniqueDisplayItems is guaranteed non-null here
+                              // Apply style directly to the container div, passing only the index
+                              <div
+                                key={`item-${item.item_template_id || index}-${item.name}`} // Use unique key
+                                className="wheel-item-text"
+                                style={getItemStyle(index)} // Pass index relative to unique list
+                              >
+                                  {/* Use display_color for the text color */}
+                                  <span className="segment-name" style={{ color: item.display_color }}>
                                           {item.name}
                                       </span>
                                   </div>
-                              ) : null
+                              // Ternary removed, map directly returns the div
                           ))}
                       </div>
                   </div>
