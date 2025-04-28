@@ -120,11 +120,12 @@ function App() {
   };
 
   return (
-    // Add position relative for absolute child positioning
-    <div style={{ padding: '20px', position: 'relative', minHeight: 'calc(100vh - 40px)' /* Ensure container takes height */ }}>
+    // Add class for flex layout and remove position: relative
+    <div className="app-container" style={{ padding: '20px', minHeight: 'calc(100vh - 40px)' /* Ensure container takes height */ }}>
       {/* Header (content centered inside) */}
       <header style={{ marginBottom: '10px', borderBottom: '1px solid var(--border-color)', paddingBottom: '5px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Keep header content centered, but header itself spans width */}
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}> {/* Increased max-width for header content */}
           {/* Left Side: Title/Subtitle */}
           <div style={{ textAlign: 'left' }}>
             <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
@@ -182,11 +183,28 @@ function App() {
         </div> {/* Close header centering wrapper div */}
       </header>
 
-      {/* Wrapper for Centered Main Content + Footer */}
-      {/* Re-add className for styling */}
-      <div className="main-content-area" style={{ maxWidth: '800px', margin: '0 auto' }}>
-        {/* Main Content Area */}
-        <div>
+      {/* NEW Wrapper for Flexbox Layout (Rules, Main Content, History) */}
+      <div className="content-wrapper">
+
+        {/* Rules Panel (Moved inside wrapper) */}
+        <div className="rules-panel"> {/* Removed inline styles, added class */}
+            <h4>Item Rules</h4>
+            {currentItemRules ? (
+                /* Removed inline font-size */
+                <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {currentItemRules}
+                </p>
+            ) : (
+                 /* Removed inline font-size */
+                <p style={{ color: 'var(--secondary-text)' }}>Unbox an item to see its rules.</p>
+            )}
+        </div>
+
+        {/* Main Content Area (Moved inside wrapper) */}
+        {/* Re-add className for styling */}
+        <div className="main-content-area"> {/* Removed inline styles */}
+          {/* Inner div might not be needed anymore, but keep for now */}
+          <div>
           {isAdminMode ? (
             <Tabs>
               <Tab label="Open Case">
@@ -215,26 +233,13 @@ function App() {
               )}
             </main>
           )}
-        </div>
+          </div>
+        </div> {/* Close Main Content Area */}
 
-      </div> {/* Close Centered Content Wrapper */}
-
-      {/* Absolutely Positioned Rules Panel (Left) - Using CSS class */}
-      <div className="rules-panel"> {/* Removed inline styles, added class */}
-          <h4>Item Rules</h4>
-          {currentItemRules ? (
-              <p style={{ fontSize: '0.9em', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {currentItemRules}
-              </p>
-          ) : (
-              <p style={{ fontSize: '0.9em', color: 'var(--secondary-text)' }}>Unbox an item to see its rules.</p>
-          )}
-      </div>
-
-      {/* Absolutely Positioned History Panel (Right) - Using CSS class */}
-      <div className="history-panel-right"> {/* Removed inline styles, added class */}
-          <h4>Unbox History</h4>
-          {unboxedHistory.length === 0 ? (
+        {/* History Panel (Moved inside wrapper) */}
+        <div className="history-panel-right"> {/* Removed inline styles, added class */}
+            <h4>Unbox History</h4>
+            {unboxedHistory.length === 0 ? (
               <p style={{ fontSize: '0.9em', color: 'var(--secondary-text)' }}>No items unboxed yet.</p>
           ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -257,8 +262,11 @@ function App() {
                   ))}
               </ul>
           )}
-      </div>
-    </div> // Close Outermost Container
+        </div> {/* Close History Panel */}
+
+      </div> {/* Close NEW content-wrapper */}
+
+    </div> // Close Outermost app-container
   );
 }
 

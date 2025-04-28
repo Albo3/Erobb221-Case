@@ -86,6 +86,19 @@
     }
   }
 
+/* App Container Layout - Keep as block, not flex */
+.app-container {
+  /* No flex here */
+}
+
+/* NEW Content Wrapper Layout */
+.content-wrapper {
+  display: flex;
+  gap: 20px; /* Add space between columns */
+  align-items: flex-start; /* Align items to the top */
+}
+
+
 /* Add outline to header title */
 header h1 {
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
@@ -125,43 +138,56 @@ header h1 {
      /* border inherited, but border-bottom overrides */
   }
 
-  /* Side Panels */
+  /* Side Panels - Updated for Flexbox */
   .rules-panel,
   .history-panel-right {
-    /* Common styles moved from App.tsx inline styles */
-    position: absolute;
-    top: 80px; /* Adjust based on header height */
-    max-height: calc(100vh - 120px); /* Adjust based on header/footer/padding */
-    overflow-y: auto;
-    /* Inherit background/padding/border/shadow from .history-panel base */
-    background-color: rgba(62, 70, 55, 0.9); /* Derived from --secondary-bg */
-    padding: 10px; /* Keep specific padding */
-    border: 1px solid var(--border-dark); /* Add base border */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3); /* Add shadow */
+    /* Common styles */
+    max-height: calc(100vh - 120px); /* Keep max height */
+    overflow-y: auto; /* Keep scroll */
+    background-color: rgba(62, 70, 55, 0.9);
+    padding: 10px;
+    border: 1px solid var(--border-dark);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    flex: 0 0 auto; /* Don't grow, don't shrink, base on width */
   }
 
   .rules-panel {
     /* Specific styles for left panel */
-    left: 20px;
-    width: 400px; /* Keep the wider width */
-    border-right: 1px solid var(--border-color);
-    padding-right: 15px;
-    border-left: 1px solid var(--border-dark); /* Add left border */
-    border-top: 1px solid var(--border-dark); /* Add top border */
-    border-bottom: 1px solid var(--border-dark); /* Add bottom border */
+    width: 350px; /* Increased width */
+    order: 1; /* Place it first */
+    /* Remove positioning styles (left, border-right, padding-right) */
+    /* Keep borders */
+    border-left: 1px solid var(--border-dark);
+    border-top: 1px solid var(--border-dark);
+    border-bottom: 1px solid var(--border-dark);
+    border-right: 1px solid var(--border-dark); /* Add right border */
+  }
+
+  /* Increase font size for text within rules panel */
+  .rules-panel p {
+    font-size: 1.1em; /* Slightly larger text */
+    /* Keep inline styles from App.tsx for color/whitespace/wordbreak */
   }
 
   .history-panel-right {
      /* Specific styles for right panel */
-     right: 20px;
-     width: 250px; /* Keep original width */
-     border-left: 1px solid var(--border-color);
-     padding-left: 15px;
-     border-right: 1px solid var(--border-dark); /* Add right border */
-     border-top: 1px solid var(--border-dark); /* Add top border */
-     border-bottom: 1px solid var(--border-dark); /* Add bottom border */
+     width: 250px; /* Keep width */
+     order: 3; /* Place it last */
+     /* Remove positioning styles (right, border-left, padding-left) */
+     /* Keep borders */
+     border-right: 1px solid var(--border-dark);
+     border-top: 1px solid var(--border-dark);
+     border-bottom: 1px solid var(--border-dark);
+     border-left: 1px solid var(--border-dark); /* Add left border */
   }
 
+  /* Main Content Area - Updated for Flexbox */
+  .main-content-area {
+    flex: 1 1 auto; /* Grow and shrink */
+    order: 2; /* Place it in the middle */
+    max-width: none; /* Remove max-width constraint */
+    margin: 0; /* Remove margin */
+  }
 
   /* Scrollbars */
 
@@ -274,17 +300,33 @@ header h1 {
     }
   }
 
-  /* Media Query for smaller screens */
-  @media (max-width: 1550px) { /* Adjust this breakpoint as needed */
-    .rules-panel,
-    .history-panel-right {
-      display: none; /* Hide panels on smaller screens */
+  /* REMOVED Media Query that hid panels */
+
+  /* NEW Media Query for stacking on small screens */
+  @media (max-width: 900px) { /* Lowered breakpoint */
+    /* Target the content-wrapper for stacking */
+    .content-wrapper {
+      flex-direction: column; /* Stack elements vertically */
+      align-items: stretch; /* Stretch items to fill width */
     }
+
+    .rules-panel,
+    .history-panel-right,
     .main-content-area {
-      margin: 0 20px; /* Add some margin when panels are hidden */
-      max-width: none; /* Allow main content to take more space */
+      width: 100%; /* Make each item take full width */
+      order: initial; /* Reset order for vertical flow */
+      max-height: none; /* Allow panels to take needed height */
+    }
+
+    .rules-panel {
+      margin-bottom: 20px; /* Add space below rules panel when stacked */
+    }
+
+     .history-panel-right {
+      margin-top: 20px; /* Add space above history panel when stacked */
     }
   }
+
 
   /* Hr */
 
