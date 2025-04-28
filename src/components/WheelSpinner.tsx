@@ -461,16 +461,15 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     
     // Use a fixed radius for consistent positioning
     // Slightly smaller radius to ensure text stays within segment
-    const radius = WHEEL_SIZE * 0.35;
+    const radius = WHEEL_SIZE * 0.32; // Reduced radius slightly
     
     // Calculate position based on center angle and radius
     const angleRad = centerAngle * Math.PI / 180;
     const x = 50 + (radius / (WHEEL_SIZE / 100)) * Math.sin(angleRad);
     const y = 50 - (radius / (WHEEL_SIZE / 100)) * Math.cos(angleRad);
 
-    // Rotate text to align with the segment
-    // For segments on the bottom half, flip text 180 degrees to keep it readable
-    const textRotation = centerAngle > 90 && centerAngle < 270 ? centerAngle + 180 : centerAngle;
+    // Rotate the container to align with the segment's center angle
+    const textRotation = centerAngle; // Remove the conditional 180 flip
 
     // Calculate font size based on segment size
     // Smaller segments get smaller font
@@ -480,10 +479,12 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         position: 'absolute',
         left: `${x}%`,
         top: `${y}%`,
-        transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center and rotate
-        width: 'auto',
+        transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center and rotate container
+        width: 'auto', // Let width be determined by content
+        height: '100px', // Limit the radial height of the container
+        overflow: 'hidden', // Hide overflow from the container
         textAlign: 'center',
-        whiteSpace: 'nowrap',
+        // whiteSpace: 'nowrap', // Remove from container
         pointerEvents: 'none', // Prevent text from interfering with clicks
         fontSize: fontSize,
         // Add a debug outline to see the positioning (can be removed later)
@@ -551,11 +552,22 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                                 className="wheel-item-text"
                                 style={getItemStyle(index)} // Pass index relative to unique list
                               >
-                                  {/* Use display_color for the text color */}
-                                  <span className="segment-name" style={{ color: item.display_color }}>
-                                          {item.name}
-                                      </span>
-                                  </div>
+                                  {/* Use display_color for the text color and make text vertical */}
+                                  <span
+                                      className="segment-name"
+                                      style={{
+                                          color: item.display_color,
+                                          writingMode: 'vertical-rl', // Make text vertical (right-to-left flow)
+                                          textOrientation: 'mixed', // Keep characters upright
+                                          whiteSpace: 'nowrap', // Re-add to span, might help overflow calculation
+                                          // overflow, textOverflow, maxHeight, display removed from span
+                                          // Add a slight transform to better center vertically if needed
+                                          // transform: 'translateY(-50%)', // Example adjustment - might need tweaking
+                                      }}
+                                  >
+                                      {item.name}
+                                  </span>
+                              </div>
                               // Ternary removed, map directly returns the div
                           ))}
                       </div>
