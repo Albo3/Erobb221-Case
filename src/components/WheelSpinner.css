@@ -96,16 +96,20 @@
   /* Styles for the inner span containing the text */
   display: inline-block; /* Needed for padding */
   padding: 3px 6px;
-  background-color: rgba(0, 0, 0, 0.8); /* Darker background for better readability */
+  /* background-color: rgba(0, 0, 0, 0.8); */ /* Darker background for better readability - REMOVED */
   border-radius: 3px;
   font-weight: bold;
   /* Color is applied inline based on item.color */
   word-break: keep-all; /* Prevent breaking words */
   line-height: 1.1;
-  /* Ensure text shadow is still visible */
-  text-shadow: 1px 1px 0 var(--border-dark);
+  /* Ensure text shadow is still visible - Use multiple shadows for outline */
+  text-shadow: 
+    -1px -1px 0 #000,  
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000; /* 1px black outline */
   z-index: 3; /* Ensure text is above the border lines */
-  border: 1px solid rgba(255, 255, 255, 0.3); /* Slightly more visible border */
+  /* border: 1px solid rgba(255, 255, 255, 0.3); */ /* Slightly more visible border - REMOVED */
   max-width: 80px; /* Smaller max-width to prevent overlap */
   overflow: hidden;
   text-overflow: ellipsis;

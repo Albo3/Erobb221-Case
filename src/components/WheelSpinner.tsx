@@ -58,7 +58,7 @@ const calculateSegmentAngles = (items: CaseItem[]): {
     let initialAngles = validItems.map(item => ((item.percentage_chance || 0) / totalPercentage) * 360);
 
     // --- Minimum Angle Adjustment Logic ---
-    const minAngle = 18; // 5% of 360 degrees
+    const minAngle = 7.2; // 2% of 360 degrees
     let adjustedAngles = [...initialAngles];
     let totalAngle = 360;
     let deficit = 0;
@@ -473,7 +473,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
     // Calculate font size based on segment size
     // Smaller segments get smaller font
-    const fontSize = angleSpan < 20 ? '0.65em' : angleSpan < 40 ? '0.75em' : '0.85em';
+    const fontSize = angleSpan < 20 ? '0.75em' : angleSpan < 40 ? '0.85em' : '0.95em'; // Increased sizes
 
     return {
         position: 'absolute',
