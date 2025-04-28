@@ -14,20 +14,20 @@
 
 .wheel-marker {
   position: absolute;
-  top: -5px; /* Position slightly above the center top */
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%; /* Center vertically */
+  right: -5px; /* Position slightly outside the right edge */
+  transform: translateY(-50%); /* Adjust vertical centering */
   width: 0;
   height: 0;
-  border-left: 15px solid transparent; /* Triangle shape */
-  border-right: 15px solid transparent;
-  border-top: 20px solid var(--accent); /* Use accent color */
+  border-top: 15px solid transparent; /* Triangle shape pointing left */
+  border-bottom: 15px solid transparent;
+  border-right: 20px solid var(--accent); /* Use accent color */
   z-index: 2; /* Ensure marker is above the wheel */
-  /* Add CS 1.6 style border/outline */
-  filter: drop-shadow(-1px -1px 0 var(--border-dark))
-          drop-shadow(1px -1px 0 var(--border-dark))
-          drop-shadow(-1px 1px 0 var(--border-dark))
-          drop-shadow(1px 1px 0 var(--border-dark));
+  /* Add CS 1.6 style border/outline - Adjust shadow for right position */
+  filter: drop-shadow(1px -1px 0 var(--border-dark)) /* Top-right */
+          drop-shadow(1px 1px 0 var(--border-dark)) /* Bottom-right */
+          drop-shadow(-1px -1px 0 var(--border-dark)) /* Top-left (less relevant but keeps consistency) */
+          drop-shadow(-1px 1px 0 var(--border-dark)); /* Bottom-left (less relevant but keeps consistency) */
 }
 
 .wheel-graphic {

@@ -58,7 +58,7 @@ const calculateSegmentAngles = (items: CaseItem[]): {
     let initialAngles = validItems.map(item => ((item.percentage_chance || 0) / totalPercentage) * 360);
 
     // --- Minimum Angle Adjustment Logic ---
-    const minAngle = 7.2; // 2% of 360 degrees
+    const minAngle = 5.4; // 1.5% of 360 degrees
     let adjustedAngles = [...initialAngles];
     let totalAngle = 360;
     let deficit = 0;
@@ -205,12 +205,16 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
   // --- Create a memoized list of unique items for rendering ---
   const uniqueDisplayItems = useMemo(() => {
     if (!currentCaseData?.items) return [];
-    // Filter out null/undefined first
-    const validItems = currentCaseData.items.filter((item): item is CaseItem => item !== null && item !== undefined);
-    // Then filter for uniqueness based on name and color
+    // Filter out null/undefined first, AND items with 0% chance
+    const validItems = currentCaseData.items.filter((item): item is CaseItem => 
+        item !== null && 
+        item !== undefined &&
+        item.percentage_chance > 0 // Add this condition
+    );
+    // Then filter for uniqueness based on name and color among the remaining items
     return validItems.filter((item, index, self) =>
         index === self.findIndex(i =>
-            i.name === item.name && i.display_color === item.display_color
+            i.name === item.name && i.display_color === item.display_color 
         )
     );
   }, [currentCaseData]);
@@ -398,14 +402,32 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     winningSegmentAngleSpan = visualAngleSpans[winningItemIndexInUniqueList]!;
 
     // 4. Calculate the target rotation to center the marker in the middle of the VISUAL segment
-    const targetAngle = -(winningSegmentStartAngle + winningSegmentAngleSpan / 2);
+    // Marker is at 270 degrees (right side). We need to rotate the wheel so the segment center aligns with 270.
+    // Rotation = -(segmentCenter - markerPosition)
+    const segmentCenterAngle = winningSegmentStartAngle + winningSegmentAngleSpan / 2;
+    const markerPosition = 90; // Right side (3 o'clock)
+    const targetAngle = -(segmentCenterAngle - markerPosition); // Calculate the base target angle relative to 0 degrees
     const fullSpins = 5;
-    const currentRotation = targetRotation;
+    const currentRotation = targetRotation; // Get the starting rotation value for this spin
+    
     // Apply random offset based on the VISUAL angle span
     const randomOffset = (Math.random() - 0.5) * (winningSegmentAngleSpan * 0.8);
-    const finalTargetAngle = targetAngle + randomOffset;
-    const rotationDifference = (360 * fullSpins + finalTargetAngle) - (currentRotation % 360);
-    const finalRotation = currentRotation + rotationDifference;
+    const finalTargetAngle = targetAngle + randomOffset; // This is the desired final absolute angle relative to 0
+
+    // Calculate the effective current angle (normalized to 0-359.99...)
+    const currentEffectiveAngle = ((currentRotation % 360) + 360) % 360;
+    // Calculate the effective target angle (normalized to 0-359.99...)
+    const finalTargetEffectiveAngle = ((finalTargetAngle % 360) + 360) % 360;
+
+    // Calculate the shortest positive angle difference to reach the target
+    let angleDifference = finalTargetEffectiveAngle - currentEffectiveAngle;
+    if (angleDifference <= 0) { // If target is behind or at the same effective angle
+        angleDifference += 360; // Add a full circle to ensure forward rotation
+    }
+
+    // Calculate the final rotation: current absolute rotation + full spins + the calculated angle difference
+    const finalRotation = currentRotation + (fullSpins * 360) + angleDifference;
+
     // --- End of visual rotation calculation ---
 
     setTargetRotation(finalRotation);
@@ -469,7 +491,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     const y = 50 - (radius / (WHEEL_SIZE / 100)) * Math.cos(angleRad);
 
     // Rotate the container to align with the segment's center angle
-    const textRotation = centerAngle; // Remove the conditional 180 flip
+    // Add 180 degrees to flip the orientation as requested
+    const textRotation = centerAngle + 180; 
 
     // Calculate font size based on segment size
     // Smaller segments get smaller font
