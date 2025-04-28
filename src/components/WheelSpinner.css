@@ -59,7 +59,7 @@
   box-shadow: inset 0 0 0 3px var(--border-light), /* Match wheel inset shadow */
               0 0 8px rgba(0, 0, 0, 0.4); /* Slightly softer outer shadow */
   background-color: var(--secondary-bg); /* Background if image fails */
-  pointer-events: none; /* Prevent image from interfering with interactions */
+  /* pointer-events: none; */ /* REMOVED - Allow clicks on center image */
 }
 
 /* Removed the radial overlay */

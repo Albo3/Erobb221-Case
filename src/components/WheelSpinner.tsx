@@ -554,6 +554,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
                       src={getApiUrl('/uploads/images/emonbag.webp')} 
                       alt="Wheel Center" 
                       className="wheel-center-image" 
+                      onClick={handleSpin} // Add onClick handler here
+                      style={{ cursor: isSpinning ? 'default' : 'pointer' }} // Add pointer cursor when clickable
                       onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
                   />
                   <div className="wheel-marker"></div>

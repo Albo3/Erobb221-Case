@@ -129,7 +129,7 @@ function App() {
           {/* Left Side: Title/Subtitle */}
           <div style={{ textAlign: 'left' }}>
             <h1 style={{ color: 'var(--accent)', margin: 0, paddingBottom: '2px', fontSize: '1.8em' }}>
-              Er<span onClick={handleInteraction} style={{ cursor: 'pointer' }}>o</span>bb221 Case Manager
+              Er<span onClick={handleInteraction} style={{ cursor: 'pointer' }}>o</span>bb221 Case Opener
             </h1>
             <p style={{ color: 'var(--secondary-text)', margin: 0, fontSize: '0.9em' }}></p>
           </div>
@@ -188,7 +188,7 @@ function App() {
 
         {/* Rules Panel (Moved inside wrapper) */}
         <div className="rules-panel"> {/* Removed inline styles, added class */}
-            <h4>Item Rules</h4>
+            <h4>Punishment Rules</h4>
             {currentItemRules ? (
                 /* Removed inline font-size */
                 <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
