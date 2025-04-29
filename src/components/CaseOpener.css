@@ -1,7 +1,7 @@
 .case-opener-viewport {
   width: 100%;
-  max-width: 600px; /* Adjust as needed */
-  height: 120px; /* Adjust height */
+  max-width: 750px; /* Increased max-width to fit 5 items */
+  height: 150px; /* Increased height */
   overflow: hidden;
   position: relative;
   border: 2px solid var(--border-dark);
@@ -16,7 +16,7 @@
 }
 
 .case-opener-item {
-  min-width: 120px; /* Width of each item (matches viewport height) */
+  min-width: 150px; /* Increased width to match new height */
   height: 100%;
   display: flex;
   flex-direction: column; /* Stack items vertically */
@@ -51,7 +51,7 @@
   display: block; /* Ensure it takes block space */
   width: 100%; /* Take full width for centering */
   /* --- ADDED: Constrain initial height and hide overflow --- */
-  max-height: 2.5em; /* Approx 1.5 lines, adjust as needed */
+  max-height: 3em; /* Increased max-height */
   line-height: 1.2em; /* Ensure consistent line height */
   overflow: hidden; /* Hide text exceeding max-height */
   /* --- END ADDED --- */
@@ -61,7 +61,7 @@
 /* Class for slightly smaller font */
 .case-opener-item-name--small {
   font-size: 0.95em; /* Adjust as needed */
-  max-height: 2.8em; /* Allow slightly more height for smaller font */
+  max-height: 3.3em; /* Increased max-height */
 }
 
 /* --- NEW --- */
@@ -100,7 +100,7 @@
 /* Style for the item image */
 .case-opener-item-image {
   max-width: 90%; /* Limit image width */
-  max-height: 60px; /* Limit image height */
+  max-height: 80px; /* Increased max-height */
   object-fit: contain; /* Maintain aspect ratio */
   display: block; /* Ensure it takes block space */
   margin: 0 auto; /* Center image horizontally */
