@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'; // Added useLayoutEffect
 import { getApiUrl } from '../config';
-// Removed matter import
 import StyledButton from './StyledButton';
 import './CaseOpener.css';
 // Removed direct JSON import
@@ -456,27 +455,11 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               {/* The visual container for the reel */}
               <div className="case-opener-viewport">
                   <div className="case-opener-reel" ref={reelRef}>
+                      {/* --- MODIFIED: Use ReelItem component --- */}
                       {reelItems.map((item, index) => (
-                          <div
-                              key={`${item.name}-${item.item_template_id || index}-${Math.random()}`} // Improve key uniqueness
-                              // Conditionally add 'no-image' class if image_url is missing
-                              className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
-                              style={{ color: item.display_color || 'white' }} // Use display_color
-                          >
-                              {/* Wrap name in a span for specific styling */}
-                              <span className="case-opener-item-name">{item.name}</span>
-                              {/* Add image if URL exists */}
-                              {item.image_url && (
-                                  <img
-                                      src={getApiUrl(item.image_url)}
-                                      alt={item.name}
-                                      className="case-opener-item-image"
-                                      // Basic error handling for image loading
-                                      onError={(e) => (e.currentTarget.style.display = 'none')}
-                                  />
-                              )}
-                          </div>
+                          <ReelItem key={`${item.name}-${item.item_template_id || index}-${Math.random()}`} item={item} />
                       ))}
+                      {/* --- END MODIFIED --- */}
                   </div>
                   {/* Center marker */}
                   <div className="case-opener-marker"></div>
@@ -539,6 +522,82 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       {/* History Panel Removed - Now handled in App.tsx */}
     </div>
   );
-}
+} // <-- Added missing closing brace for CaseOpener function
 
 export default CaseOpener;
+
+
+// --- NEW: ReelItem Component (Moved Outside CaseOpener) ---
+const ReelItem: React.FC<{ item: CaseItem }> = ({ item }) => {
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [nameClasses, setNameClasses] = useState('case-opener-item-name');
+
+  // Use useLayoutEffect for DOM measurements before paint
+  useLayoutEffect(() => {
+    const element = nameRef.current;
+    if (!element) return;
+
+    // Reset classes before measurement
+    element.className = 'case-opener-item-name'; // Base class only
+
+    let currentClasses = ['case-opener-item-name']; // Start with base class
+
+    // Check vertical overflow first
+    // Need a slight delay or re-measure after applying small if needed
+    const isVerticallyOverflowing = element.scrollHeight > element.clientHeight;
+
+    if (isVerticallyOverflowing) {
+      currentClasses.push('case-opener-item-name--small');
+      // Apply small class temporarily to measure horizontal overflow accurately with smaller font
+      element.classList.add('case-opener-item-name--small');
+    }
+
+    // Check horizontal overflow (potentially with small class applied)
+    const isHorizontallyOverflowing = element.scrollWidth > element.clientWidth;
+
+    if (isHorizontallyOverflowing) {
+      // If horizontal overflow, add scrolling and ensure small is kept if added
+      currentClasses = currentClasses.filter(c => c !== 'case-opener-item-name--scrolling'); // Remove old scrolling if present
+      currentClasses.push('case-opener-item-name--scrolling');
+    } else if (isVerticallyOverflowing) {
+      // If only vertical overflow, keep small but remove scrolling
+      currentClasses = currentClasses.filter(c => c !== 'case-opener-item-name--scrolling');
+    } else {
+       // No overflow, just keep the base class (already set)
+       currentClasses = ['case-opener-item-name'];
+    }
+
+    // Remove temporary small class if it was added only for measurement
+    // This is done implicitly by setting the final state below
+    // element.classList.remove('case-opener-item-name--small');
+
+
+    // Update the state with the final calculated classes
+    setNameClasses(currentClasses.join(' '));
+
+  }, [item.name]); // Re-run if item name changes
+
+  return (
+    <div
+      // Use a more stable key if item_template_id is reliably present
+      key={`${item.name}-${item.item_template_id || 'default'}-${Math.random()}`}
+      className={`case-opener-item ${!item.image_url ? 'no-image' : ''}`}
+      style={{ color: item.display_color || 'white' }}
+    >
+      <span ref={nameRef} className={nameClasses}> {/* Apply dynamic classes */}
+        {item.name}
+      </span>
+      {item.image_url && (
+        <img
+          src={getApiUrl(item.image_url)}
+          alt={item.name}
+          className="case-opener-item-image"
+          onError={(e) => (e.currentTarget.style.display = 'none')}
+        />
+      )}
+    </div>
+  );
+};
+// --- END: ReelItem Component ---
+
+/* Removed the duplicated CaseOpener function and export default */

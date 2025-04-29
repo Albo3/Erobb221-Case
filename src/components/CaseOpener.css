@@ -50,6 +50,51 @@
   margin-bottom: 5px; /* Space between text and image */
   display: block; /* Ensure it takes block space */
   width: 100%; /* Take full width for centering */
+  /* --- ADDED: Constrain initial height and hide overflow --- */
+  max-height: 2.5em; /* Approx 1.5 lines, adjust as needed */
+  line-height: 1.2em; /* Ensure consistent line height */
+  overflow: hidden; /* Hide text exceeding max-height */
+  /* --- END ADDED --- */
+}
+
+/* --- NEW --- */
+/* Class for slightly smaller font */
+.case-opener-item-name--small {
+  font-size: 0.95em; /* Adjust as needed */
+  max-height: 2.8em; /* Allow slightly more height for smaller font */
+}
+
+/* --- NEW --- */
+/* Class to trigger scrolling animation */
+.case-opener-item-name--scrolling {
+  white-space: nowrap; /* Prevent wrapping */
+  max-height: none; /* Remove height constraint for scrolling */
+  overflow: visible; /* Allow text to overflow for animation */
+  animation: scroll-text 8s linear infinite alternate; /* Apply animation */
+  cursor: default; /* Indicate non-interactive text */
+}
+
+/* --- NEW --- */
+/* Pause animation on hover */
+.case-opener-item-name--scrolling:hover {
+  animation-play-state: paused;
+}
+
+/* --- NEW --- */
+/* Keyframes for the scrolling animation */
+@keyframes scroll-text {
+  0% {
+    transform: translateX(0%);
+    /* Add text-indent to push text slightly right initially if needed */
+    /* text-indent: 5px; */
+  }
+  100% {
+    /* Scroll leftwards. Adjust calc based on item width (120px) */
+    /* We want to reveal the hidden part. */
+    /* calc(-100% + 110px) scrolls until 10px is left visible */
+    transform: translateX(calc(-100% + 110px));
+    /* text-indent: 0; */
+  }
 }
 
 /* Style for the item image */
@@ -59,6 +104,9 @@
   object-fit: contain; /* Maintain aspect ratio */
   display: block; /* Ensure it takes block space */
   margin: 0 auto; /* Center image horizontally */
+  /* --- ADDED: Ensure image doesn't shrink if text is short --- */
+  flex-shrink: 0;
+  /* --- END ADDED --- */
 }
 
 
