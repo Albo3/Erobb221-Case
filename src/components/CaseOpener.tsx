@@ -257,18 +257,56 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
     generatedReel[winningIndex] = currentWinningItem; // Already checked currentWinningItem is not null
     setReelItems(generatedReel);
 
-    // 3. Calculate animation offset
+    // 3. Calculate animation offsets and generate dynamic keyframes
     const containerWidth = reelRef.current?.offsetWidth ?? 0;
     const centerOffset = containerWidth / 2 - REEL_ITEM_WIDTH / 2;
-    const targetScroll = winningIndex * REEL_ITEM_WIDTH - centerOffset;
+    const targetScroll = winningIndex * REEL_ITEM_WIDTH - centerOffset; // Ideal center
 
-    // 4. Apply animation
+    // Add random offset for final landing position
+    const maxFinalOffset = REEL_ITEM_WIDTH * 0.4; // Max 40% off center
+    const randomFinalOffset = (Math.random() * 2 - 1) * maxFinalOffset;
+    const finalTargetScroll = targetScroll + randomFinalOffset; // This needs to be accessible in setTimeout cleanup
+
+    // Calculate "near miss" position
+    const nearMissDirection = Math.random() < 0.5 ? -1 : 1; // -1 (left) or 1 (right)
+    const nearMissIndex = winningIndex + nearMissDirection;
+    // Ensure nearMissIndex is within bounds (though less critical as it's just a visual target)
+    const clampedNearMissIndex = Math.max(0, Math.min(totalReelItems - 1, nearMissIndex));
+    const nearMissTargetScroll = clampedNearMissIndex * REEL_ITEM_WIDTH - centerOffset;
+    // Optional: Add slight randomness to the near miss target too
+    const maxNearMissOffset = REEL_ITEM_WIDTH * 0.2; // Smaller offset for near miss
+    const randomNearMissOffset = (Math.random() * 2 - 1) * maxNearMissOffset;
+    const finalNearMissTargetScroll = nearMissTargetScroll + randomNearMissOffset;
+
+
+    // 4. Generate and apply dynamic keyframe animation
     if (reelRef.current) {
-        reelRef.current.style.transition = 'none';
-        reelRef.current.style.transform = 'translateX(0px)';
+        const animationName = `spin-${Date.now()}`;
+        const keyframes = `
+            @keyframes ${animationName} {
+                0% { transform: translateX(0px); }
+                /* Only define the start and end points. The cubic-bezier handles the speed curve. */
+                100% { transform: translateX(-${finalTargetScroll}px); }
+            }
+        `;
+
+        // Create and inject the style element
+        const styleElement = document.createElement('style');
+        styleElement.id = `anim-style-${animationName}`; // Give it an ID for easy removal
+        styleElement.innerHTML = keyframes;
+        document.head.appendChild(styleElement);
+
+        // Apply the animation
+        reelRef.current.style.transition = 'none'; // Remove any existing transition
+        reelRef.current.style.transform = 'translateX(0px)'; // Reset position before animation
         void reelRef.current.offsetWidth; // Force reflow
-        reelRef.current.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.25, 0.1, 0.25, 1)`;
-        reelRef.current.style.transform = `translateX(-${targetScroll}px)`;
+        // Further adjusted cubic-bezier: maintains high speed longer, then decelerates.
+        // Compared to (0.4, 0.6, 0.5, 1), this curve (e.g., 0.3, 0.9, 0.6, 1)
+        // reaches high speed quickly and maintains it longer before starting to slow down later.
+        reelRef.current.style.animation = `${animationName} ${SPIN_DURATION}ms cubic-bezier(0.3, 0.9, 0.6, 1) forwards`;
+        // Store animation name and final scroll position for cleanup
+        reelRef.current.dataset.animationName = animationName;
+        reelRef.current.dataset.finalScroll = finalTargetScroll.toString(); // Store final scroll
     }
 
     // 5. Set timeout to stop spinning state and show result
@@ -322,6 +360,23 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
           }
       }
       // --- End Play Item Sound ---
+
+      // Cleanup dynamic animation styles
+      if (reelRef.current && reelRef.current.dataset.animationName) {
+          const animationName = reelRef.current.dataset.animationName;
+          const finalScroll = reelRef.current.dataset.finalScroll; // Retrieve final scroll
+          const styleElement = document.getElementById(`anim-style-${animationName}`);
+          if (styleElement) {
+              document.head.removeChild(styleElement);
+          }
+          reelRef.current.style.animation = ''; // Clear animation style
+          delete reelRef.current.dataset.animationName; // Remove data attribute
+          delete reelRef.current.dataset.finalScroll; // Remove data attribute
+          // Set final transform explicitly using the stored value to prevent jump
+          if (finalScroll !== undefined) {
+              reelRef.current.style.transform = `translateX(-${finalScroll}px)`;
+          }
+      }
 
     }, SPIN_DURATION);
   };
