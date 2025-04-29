@@ -185,8 +185,8 @@ interface WheelSpinnerProps {
 }
 
 // Constants
-const SPIN_DURATION_WHEEL = 6000; // Match CaseOpener duration (6 seconds)
-const WHEEL_SIZE = 600; // Make wheel even larger
+const SPIN_DURATION_WHEEL = 6100; // Match CaseOpener duration (6 seconds)
+const WHEEL_SIZE = 700; // Make wheel even larger
 
 const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onNewUnbox }) => {
   // State
@@ -270,11 +270,19 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
               const validItems = data.items.filter((item): item is CaseItem => 
                   item !== null && item !== undefined
               );
+
+              // --- Fisher-Yates Shuffle ---
+              let shuffledItems = [...validItems]; // Create a copy to shuffle
+              for (let i = shuffledItems.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  // Use non-null assertions for swapping elements
+                  [shuffledItems[i]!, shuffledItems[j]!] = [shuffledItems[j]!, shuffledItems[i]!];
+              }
+              // --- End Shuffle ---
               
-              // Don't shuffle the items - keep them in original order for consistent positioning
-              console.log("Setting case data with", validItems.length, "valid items");
+              console.log("Setting case data with", shuffledItems.length, "shuffled valid items");
               
-              setCurrentCaseData({ ...data, items: validItems }); // Set valid items without shuffling
+              setCurrentCaseData({ ...data, items: shuffledItems }); // Set SHUFFLED valid items
               setWonItem(null);
               if (wheelRef.current) {
                   wheelRef.current.style.transition = 'none';
@@ -405,7 +413,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     // Marker is at 270 degrees (right side). We need to rotate the wheel so the segment center aligns with 270.
     // Rotation = -(segmentCenter - markerPosition)
     const segmentCenterAngle = winningSegmentStartAngle + winningSegmentAngleSpan / 2;
-    const markerPosition = 90; // Right side (3 o'clock)
+    const markerPosition = 0; // Top (0 degrees as per user's coordinate system)
     const targetAngle = -(segmentCenterAngle - markerPosition); // Calculate the base target angle relative to 0 degrees
     const fullSpins = 5;
     const currentRotation = targetRotation; // Get the starting rotation value for this spin
@@ -496,7 +504,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
 
     // Calculate font size based on segment size
     // Smaller segments get smaller font
-    const fontSize = angleSpan < 20 ? '0.75em' : angleSpan < 40 ? '0.85em' : '0.95em'; // Increased sizes
+    // Increased font sizes further
+    const fontSize = angleSpan < 20 ? '0.9em' : angleSpan < 40 ? '1.0em' : '1.1em'; 
 
     return {
         position: 'absolute',

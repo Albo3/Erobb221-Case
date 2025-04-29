@@ -14,20 +14,20 @@
 
 .wheel-marker {
   position: absolute;
-  top: 50%; /* Center vertically */
-  right: -5px; /* Position slightly outside the right edge */
-  transform: translateY(-50%); /* Adjust vertical centering */
+  top: -5px; /* Position slightly outside the top edge */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Center horizontally (removed rotation) */
   width: 0;
   height: 0;
-  border-top: 15px solid transparent; /* Triangle shape pointing left */
-  border-bottom: 15px solid transparent;
-  border-right: 20px solid var(--accent); /* Use accent color */
+  border-left: 15px solid transparent; /* Triangle shape pointing down */
+  border-right: 15px solid transparent;
+  border-top: 20px solid var(--accent); /* Changed border-bottom to border-top */
   z-index: 2; /* Ensure marker is above the wheel */
-  /* Add CS 1.6 style border/outline - Adjust shadow for right position */
-  filter: drop-shadow(1px -1px 0 var(--border-dark)) /* Top-right */
+  /* Add CS 1.6 style border/outline - Adjust shadow for top position */
+  filter: drop-shadow(1px -1px 0 var(--border-dark)) /* Top-right (less relevant) */
           drop-shadow(1px 1px 0 var(--border-dark)) /* Bottom-right */
-          drop-shadow(-1px -1px 0 var(--border-dark)) /* Top-left (less relevant but keeps consistency) */
-          drop-shadow(-1px 1px 0 var(--border-dark)); /* Bottom-left (less relevant but keeps consistency) */
+          drop-shadow(-1px 1px 0 var(--border-dark)) /* Bottom-left */
+          drop-shadow(-1px -1px 0 var(--border-dark)); /* Top-left (less relevant) */
 }
 
 .wheel-graphic {
@@ -115,6 +115,7 @@
   text-overflow: ellipsis;
   /* Add a subtle glow effect to make text stand out more */
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+  letter-spacing: 0.05em; /* Add slight spacing between characters */
 }
 
 
