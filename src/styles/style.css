@@ -106,9 +106,19 @@ header h1 {
 
 /* Style history item text */
 .history-panel ul li span {
-  font-size: 1em; /* Increase from 0.9em */
+  font-size: 1.2em; /* Further increased font size */
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Add outline */
   /* We keep the inline color style from App.tsx for rarity */
+  vertical-align: middle; /* Align text with image */
+}
+
+/* Style history item image */
+.history-panel-right ul li img {
+  width: 40px; /* Increased image width */
+  height: 40px; /* Increased image height */
+  margin-right: 8px; /* Add space between image and text */
+  vertical-align: middle; /* Align image with text */
+  object-fit: contain; /* Ensure image fits within bounds */
 }
 
   /* Make main content, history, and result area semi-transparent */
@@ -117,7 +127,7 @@ header h1 {
   .unbox-result-area {
     /* Use rgba for transparency - adjust alpha (last value) as needed (e.g., 0.9 for 90% opaque) */
     background-color: rgba(74, 89, 66, 0.9); /* Derived from --bg */
-    padding: 15px;
+    padding: 10px;
     border: 1px solid var(--border-dark);
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     position: relative; /* Ensure stacking context if needed */
@@ -134,7 +144,9 @@ header h1 {
     margin-bottom: 15px;
     border-bottom: 1px solid var(--border-light);
     background-color: rgba(74, 89, 66, 0.9); /* Ensure it uses the main bg derived color */
-     /* Padding and shadow inherited */
+    padding: 20px; /* Increased padding */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7); /* Added drop shadow */
+     /* Shadow inherited */
      /* border inherited, but border-bottom overrides */
   }
 
@@ -153,7 +165,7 @@ header h1 {
 
   .rules-panel {
     /* Specific styles for left panel */
-    width: 350px; /* Increased width */
+    width: 400px; /* Increased width further */
     order: 1; /* Place it first */
     /* Remove positioning styles (left, border-right, padding-right) */
     /* Keep borders */
@@ -165,13 +177,13 @@ header h1 {
 
   /* Increase font size for text within rules panel */
   .rules-panel p {
-    font-size: 1.1em; /* Slightly larger text */
+    font-size: 1.2em; /* Increased font size */
     /* Keep inline styles from App.tsx for color/whitespace/wordbreak */
   }
 
   .history-panel-right {
      /* Specific styles for right panel */
-     width: 250px; /* Keep width */
+     width: 300px; /* Increased width */
      order: 3; /* Place it last */
      /* Remove positioning styles (right, border-left, padding-left) */
      /* Keep borders */

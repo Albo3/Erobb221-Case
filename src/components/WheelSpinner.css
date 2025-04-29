@@ -99,6 +99,7 @@
   /* background-color: rgba(0, 0, 0, 0.8); */ /* Darker background for better readability - REMOVED */
   border-radius: 3px;
   font-weight: bold;
+  font-size: 1.2em; /* Further increased font size */
   /* Color is applied inline based on item.color */
   word-break: keep-all; /* Prevent breaking words */
   line-height: 1.1;
@@ -110,12 +111,12 @@
      1px  1px 0 #000; /* 1px black outline */
   z-index: 3; /* Ensure text is above the border lines */
   /* border: 1px solid rgba(255, 255, 255, 0.3); */ /* Slightly more visible border - REMOVED */
-  max-width: 80px; /* Smaller max-width to prevent overlap */
+  max-width: 120px; /* Further increased max-width */
   overflow: hidden;
   text-overflow: ellipsis;
   /* Add a subtle glow effect to make text stand out more */
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
-  letter-spacing: 0.05em; /* Add slight spacing between characters */
+  letter-spacing: 0.1em; /* Add slight spacing between characters */
 }
 
 

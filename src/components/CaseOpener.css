@@ -46,6 +46,7 @@
   font-size: 1.1em; /* Increased font size */
   -webkit-text-stroke: 1px black; /* Black outline */
   paint-order: stroke fill; /* Ensure stroke is behind fill */
+  letter-spacing: 1.1px; /* Added letter spacing */
   margin-bottom: 5px; /* Space between text and image */
   display: block; /* Ensure it takes block space */
   width: 100%; /* Take full width for centering */

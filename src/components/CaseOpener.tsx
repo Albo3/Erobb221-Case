@@ -353,13 +353,15 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                   <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
                   <p style={{
                       color: wonItem.display_color || 'white', // Use display_color
-                      fontSize: '1.3em', // Reduced font size
+                      fontSize: '1.4em', // Keep font size
                       fontWeight: 'bold',
-                      border: `2px solid ${wonItem.display_color || 'white'}`, // Use display_color
-                      padding: '6px 10px', // Further reduced padding
+                      border: `1px solid ${wonItem.display_color || 'white'}`, // Use display_color
+                      padding: '7px 10px', // Increased padding
                       display: 'inline-block',
-                      marginTop: '3px', // Reduced margin
-                      backgroundColor: 'var(--secondary-bg)'
+                      marginTop: '3px', // Keep margin
+                      backgroundColor: 'var(--secondary-bg)', // Reverted to original background
+                      textShadow: '1px 1px 2px rgba(0, 0, 0, 0.6)', // Made shadow weaker
+                      letterSpacing: '1px' // Added letter spacing
                   }}>
                       {wonItem.name}
                   </p>

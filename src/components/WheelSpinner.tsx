@@ -513,7 +513,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
         top: `${y}%`,
         transform: `translate(-50%, -50%) rotate(${textRotation}deg)`, // Center and rotate container
         width: 'auto', // Let width be determined by content
-        height: '100px', // Limit the radial height of the container
+        height: '130px', // Increased radial height limit for the container
         overflow: 'hidden', // Hide overflow from the container
         textAlign: 'center',
         // whiteSpace: 'nowrap', // Remove from container

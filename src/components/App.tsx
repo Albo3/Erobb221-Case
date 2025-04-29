@@ -108,7 +108,7 @@ function App() {
 
       // Update the history panel
       setUnboxedHistory(prevHistory => {
-          const updatedHistory = [newItem, ...prevHistory].slice(0, 15); // Add to start, limit to 15
+          const updatedHistory = [newItem, ...prevHistory].slice(0, 10); // Add to start, limit to 10
           // Save updated history to localStorage
           try {
               localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
@@ -188,7 +188,7 @@ function App() {
 
         {/* Rules Panel (Moved inside wrapper) */}
         <div className="rules-panel"> {/* Removed inline styles, added class */}
-            <h4>Punishment Rules</h4>
+            <h4>Punishment Rules:</h4>
             {currentItemRules ? (
                 /* Removed inline font-size */
                 <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -250,12 +250,14 @@ function App() {
                               <img
                                   src={getApiUrl(item.image_url)}
                                   alt="" // Decorative
-                                  style={{ width: '30px', height: '30px', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-dark)' }}
+                                  // Removed inline width and height
+                                  style={{ objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-dark)' }}
                                   loading="lazy"
                               />
                           )}
                           {/* Use display_color for history item text */}
-                          <span style={{ color: item.display_color, fontSize: '0.9em', wordBreak: 'break-word' }}>
+                          {/* Removed inline fontSize */}
+                          <span style={{ color: item.display_color, wordBreak: 'break-word' }}>
                               {item.name}
                           </span>
                       </li>
