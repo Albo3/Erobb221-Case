@@ -1,7 +1,7 @@
 .case-opener-viewport {
   width: 100%;
-  max-width: 750px; /* Increased max-width to fit 5 items */
-  height: 150px; /* Increased height */
+  max-width: 800px; /* Increased max-width */
+  height: 160px; /* Increased height */
   overflow: hidden;
   position: relative;
   border: 2px solid var(--border-dark);
