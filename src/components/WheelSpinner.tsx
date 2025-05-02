@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'; // Import useMemo
 import StyledButton from './StyledButton';
+import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
 import { getApiUrl } from '../config'; // Import the helper
 import './WheelSpinner.css';
 import '../styles/style.css';
 import './CaseOpener.css'; // For grid styles
+import './UnboxedItemPopup.css'; // Import popup CSS
 
 // Define CaseItem interface (matching CaseOpener)
 interface CaseItem {
@@ -200,6 +202,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
   const [isSpinning, setIsSpinning] = useState(false);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
   const [targetRotation, setTargetRotation] = useState(0);
+  const [isPopupOpen, setIsPopupOpen] = useState(false); // State for popup visibility
   const wheelRef = useRef<HTMLDivElement>(null);
 
   // --- Create a memoized list of unique items for rendering ---
@@ -449,6 +452,9 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     // Set timeout for results // <<< Restoring this block
     setTimeout(() => {
         setWonItem(winningItem);
+        if (winningItem) { // Only open popup if an item was actually won
+            setIsPopupOpen(true); // Open the popup
+        }
         onNewUnbox(winningItem);
         setIsSpinning(false);
         console.log("Wheel stopped. Won:", winningItem);
@@ -531,23 +537,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
       {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
-      {/* Won Item Display Area */}
-      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-          {wonItem && !isSpinning && (
-              <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You spun:</h3>
-                  <p style={{ color: wonItem.display_color || 'white', fontSize: '1.3em', fontWeight: 'bold', border: `2px solid ${wonItem.display_color || 'white'}`, padding: '6px 10px', display: 'inline-block', marginTop: '3px', backgroundColor: 'var(--secondary-bg)' }}>
-                      {wonItem.name}
-                  </p>
-                  {wonItem.image_url && (
-                          // image_url from API already includes the path, just need base
-                          <img src={getApiUrl(wonItem.image_url)} alt={wonItem.name} style={{ display: 'block', width: '150px', height: '150px', objectFit: 'contain', margin: '8px auto', border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
-                      )}
-                      {/* Rules display removed */}
-                  </div>
-              )}
-          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Select a case and click "Spin Wheel"</p>}
-      </div>
+      {/* Placeholder div removed */}
 
       {/* Wheel Display Area & Spin Button */}
       {currentCaseData && !isLoading && !error && (
@@ -643,6 +633,13 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
           )}
           {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
       </div>
+
+      {/* Render the UnboxedItemPopup */}
+      <UnboxedItemPopup 
+        item={wonItem} 
+        isOpen={isPopupOpen} 
+        onClose={() => setIsPopupOpen(false)} 
+      />
     </div>
   );
 };

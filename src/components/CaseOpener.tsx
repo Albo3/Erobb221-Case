@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'; // Added useLayoutEffect
 import { getApiUrl } from '../config';
 import StyledButton from './StyledButton';
+import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
 import './CaseOpener.css';
+import './UnboxedItemPopup.css'; // Import popup CSS
 // Removed direct JSON import
 // Removed import caseSoundUrl from '/public/sounds/case.mp3';
 
@@ -54,6 +56,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPopupOpen, setIsPopupOpen] = useState(false); // State for popup visibility
   const reelRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current ITEM sound instance
   // const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance - REMOVED
@@ -387,6 +390,9 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
 
       setIsSpinning(false);
       setWonItem(currentWinningItem); // Set the winning item
+      if (currentWinningItem) { // Only open popup if an item was actually won
+          setIsPopupOpen(true); // Open the popup
+      }
 
       // Call the callback prop to report the unboxed item to App
       if (currentWinningItem) {
@@ -474,49 +480,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
-      {/* Won Item Display Area (Moved Above Reel) */}
-      {/* Further reduced minHeight, marginBottom, paddingBottom */}
-      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-          {wonItem && !isSpinning && (
-              <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
-                  <p style={{
-                      color: wonItem.display_color || 'white', // Use display_color
-                      fontSize: '1.4em', // Keep font size
-                      fontWeight: 'bold',
-                      border: `1px solid ${wonItem.display_color || 'white'}`, // Use display_color
-                      padding: '7px 10px', // Increased padding
-                      display: 'inline-block',
-                      marginTop: '3px', // Keep margin
-                      backgroundColor: 'var(--secondary-bg)', // Reverted to original background
-                      textShadow: '1px 1px 2px rgba(0, 0, 0, 0.6)', // Made shadow weaker
-                      letterSpacing: '1px' // Added letter spacing
-                  }}>
-                      {wonItem.name}
-                  </p>
-                  {/* Display Image if URL exists */}
-                  {wonItem.image_url && (
-                      <img
-                          src={getApiUrl(wonItem.image_url)}
-                          alt={wonItem.name}
-                          style={{
-                              display: 'block',
-                              width: '150px', // Reduced size
-                              height: '150px', // Reduced size
-                              objectFit: 'contain',
-                              margin: '8px auto', // Reduced margin
-                              border: '1px solid var(--border-color)',
-                              backgroundColor: 'var(--input-bg)'
-                          }}
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                  )}
-                  {/* Rules display removed from here - now handled in App.tsx left panel */}
-              </div>
-          )}
-          {/* Placeholder text if nothing won yet */}
-          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Click "Open Case" to begin</p>}
-      </div>
+      {/* Placeholder div removed */}
 
 
       {/* Case Opener Reel and Button Section */}
@@ -595,6 +559,13 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       {/* </div> */} {/* Removed closing tag for outer flex container */}
 
       {/* History Panel Removed - Now handled in App.tsx */}
+
+      {/* Render the UnboxedItemPopup */}
+      <UnboxedItemPopup 
+        item={wonItem} 
+        isOpen={isPopupOpen} 
+        onClose={() => setIsPopupOpen(false)} 
+      />
     </div>
   );
 } // <-- Added missing closing brace for CaseOpener function
