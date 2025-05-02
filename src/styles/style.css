@@ -154,7 +154,7 @@ header h1 {
   .case-content-panel, /* Renamed from .rules-panel */
   .history-panel-right {
     /* Common styles */
-    max-height: 650px; /* Adjusted max height to fit ~10 items before scrolling */
+    max-height: 715px; /* Increased max height by 10% */
     overflow-y: auto; /* Keep scroll */
     background-color: rgba(62, 70, 55, 0.9);
     padding: 10px;
@@ -215,7 +215,7 @@ header h1 {
 
   .history-panel-right {
      /* Specific styles for right panel */
-     width: 300px; /* Increased width */
+     width: 350px; /* Increased width to cater for long names */
      order: 3; /* Place it last */
      /* Remove positioning styles (right, border-left, padding-left) */
      /* Keep borders */
