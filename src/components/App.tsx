@@ -243,7 +243,7 @@ function App() {
 
       // Update the history panel
       setUnboxedHistory(prevHistory => {
-          const updatedHistory = [newItem, ...prevHistory].slice(0, 13); // Add to start, limit to 13
+          const updatedHistory = [newItem, ...prevHistory].slice(0, 12); // Add to start, limit to 13
           // Save updated history to localStorage
           try {
               localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
