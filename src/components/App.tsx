@@ -84,8 +84,10 @@ function App() {
   // Memoize sorted items for the content panel
   const sortedCaseItems = useMemo(() => {
     if (!selectedCaseData?.items) return [];
-    // Sort by percentage_chance ascending (rarest first)
-    return [...selectedCaseData.items].sort((a, b) => a.percentage_chance - b.percentage_chance);
+    // Filter out items with 0% chance, then sort by percentage_chance ascending (rarest first)
+    return [...selectedCaseData.items]
+      .filter(item => item.percentage_chance > 0) // <-- Add this filter step
+      .sort((a, b) => a.percentage_chance - b.percentage_chance);
   }, [selectedCaseData]);
 
 
