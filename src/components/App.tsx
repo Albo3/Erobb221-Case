@@ -27,8 +27,27 @@ interface CaseItem {
 
 function App() {
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [displayMode, setDisplayMode] = useState<'case' | 'wheel'>('case'); // State for display mode
-  const [volume, setVolume] = useState(0.5);
+  // Load display mode from localStorage, default to 'case'
+  const [displayMode, setDisplayMode] = useState<'case' | 'wheel'>(() => {
+    try {
+      const storedMode = localStorage.getItem('displayMode');
+      return (storedMode === 'case' || storedMode === 'wheel') ? storedMode : 'case';
+    } catch (e) {
+      console.error("Failed to load displayMode from localStorage", e);
+      return 'case';
+    }
+  });
+  // Load volume from localStorage, default to 0.5
+  const [volume, setVolume] = useState(() => {
+    try {
+      const storedVolume = localStorage.getItem('volume');
+      const parsedVolume = storedVolume ? parseFloat(storedVolume) : 0.5;
+      return isNaN(parsedVolume) ? 0.5 : parsedVolume;
+    } catch (e) {
+      console.error("Failed to load volume from localStorage", e);
+      return 0.5;
+    }
+  });
   const [sequenceState, setSequenceState] = useState(0); // 0: initial, 1: volume correct
   const [currentItemRules, setCurrentItemRules] = useState<string | null>(null); // State for current item's rules
   const [popupHistoryItem, setPopupHistoryItem] = useState<CaseItem | null>(null); // State for the item to show in history popup
@@ -51,6 +70,12 @@ function App() {
   // Handler for volume change (passed down)
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
+    // Save volume to localStorage
+    try {
+      localStorage.setItem('volume', newVolume.toString());
+    } catch (e) {
+      console.error("Failed to save volume to localStorage", e);
+    }
     // Update sequence state based on volume
     if (newVolume === 0.99) {
       setSequenceState(1);
@@ -102,6 +127,17 @@ function App() {
     // Always reset sequence state after interaction attempt
     setSequenceState(0);
     console.log("Sequence state reset to 0 after interaction");
+  };
+
+  // Handler for display mode change
+  const handleDisplayModeChange = (mode: 'case' | 'wheel') => {
+    setDisplayMode(mode);
+    // Save display mode to localStorage
+    try {
+      localStorage.setItem('displayMode', mode);
+    } catch (e) {
+      console.error("Failed to save displayMode to localStorage", e);
+    }
   };
 
 
@@ -157,7 +193,7 @@ function App() {
                     id="displayModeCase" // Add unique ID
                     value="case"
                     checked={displayMode === 'case'}
-                    onChange={() => setDisplayMode('case')}
+                    onChange={() => handleDisplayModeChange('case')} // Use new handler
                   />
                   <label htmlFor="displayModeCase">Case Opening</label> {/* Use htmlFor */}
                 </div>
@@ -168,7 +204,7 @@ function App() {
                     id="displayModeWheel" // Add unique ID
                     value="wheel"
                     checked={displayMode === 'wheel'}
-                    onChange={() => setDisplayMode('wheel')}
+                    onChange={() => handleDisplayModeChange('wheel')} // Use new handler
                   />
                   <label htmlFor="displayModeWheel">Wheel Spin</label> {/* Use htmlFor */}
                 </div>
