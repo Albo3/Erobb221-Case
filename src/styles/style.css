@@ -154,7 +154,7 @@ header h1 {
   .case-content-panel, /* Renamed from .rules-panel */
   .history-panel-right {
     /* Common styles */
-    max-height: calc(100vh - 120px); /* Keep max height */
+    max-height: 650px; /* Adjusted max height to fit ~10 items before scrolling */
     overflow-y: auto; /* Keep scroll */
     background-color: rgba(62, 70, 55, 0.9);
     padding: 10px;
@@ -236,22 +236,20 @@ header h1 {
   /* Scrollbars */
 
   ::-webkit-scrollbar {
-    width: 18px;
+    width: 8px; /* Reduced width */
   }
 
   ::-webkit-scrollbar-track {
-    background-color: var(--scrollbar-track);
-    width: 18px;
-    border: 1px solid var(--border-dark);
-    border-left: 0;
+    background-color: rgba(62, 70, 55, 0.5); /* Semi-transparent background color */
+    width: 8px; /* Reduced width */
+    border: none; /* Remove border */
   }
 
   ::-webkit-scrollbar-thumb {
-    width: 17px;
-    background-color: var(--bg);
-    border: 1px solid;
-    border-color: var(--border-light) var(--border-dark) var(--border-dark)
-      var(--border-light);
+    width: 6px; /* Reduced width */
+    background-color: rgba(160, 170, 149, 0.7); /* Semi-transparent thumb color (based on --text-3) */
+    border: none; /* Remove border */
+    border-radius: 4px; /* Add slight rounding */
   }
 
   ::-webkit-scrollbar-corner {
