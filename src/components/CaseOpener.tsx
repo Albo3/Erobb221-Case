@@ -56,7 +56,10 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
   const [error, setError] = useState<string | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current ITEM sound instance
-  const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance
+  // const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance - REMOVED
+  const tickAudioRef = useRef<HTMLAudioElement | null>(null); // Ref for the tick sound
+  const animationFrameRef = useRef<number | null>(null); // Ref for the animation frame ID
+  const lastTickIndexRef = useRef<number>(-1); // Ref to track the last item index that ticked
 
   // Effect to fetch the list of available cases on mount
   useEffect(() => {
@@ -143,11 +146,26 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
       audioRef.current.volume = volume; // Use volume prop
     }
-    if (caseAudioRef.current) { // Update case opening sound volume
-      // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
-      caseAudioRef.current.volume = volume; // Use volume prop
+    // if (caseAudioRef.current) { // Update case opening sound volume - REMOVED
+    //   // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
+    //   caseAudioRef.current.volume = volume; // Use volume prop - REMOVED
+    // }
+    // Also update tick sound volume if it exists
+    if (tickAudioRef.current) {
+        tickAudioRef.current.volume = volume;
     }
   }, [volume]); // Run this effect when volume prop changes
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        console.log("[CaseOpener Cleanup] Cancelled animation frame.");
+      }
+    };
+  }, []); // Empty dependency array ensures this runs only on mount and unmount
+
 
   // Function to get a random item based on custom percentage chance
   const getRandomItem = (): CaseItem | null => {
@@ -190,33 +208,33 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
         audioRef.current.src = ''; // Detach source
         audioRef.current = null;
     }
-    if (caseAudioRef.current) {
-        console.log("[CaseOpener] Stopping previous case opening sound.");
-        caseAudioRef.current.pause();
-        caseAudioRef.current.src = ''; // Detach source
-        caseAudioRef.current = null;
-    }
+    // if (caseAudioRef.current) { // REMOVED Block
+    //     console.log("[CaseOpener] Stopping previous case opening sound.");
+    //     caseAudioRef.current.pause();
+    //     caseAudioRef.current.src = ''; // Detach source
+    //     caseAudioRef.current = null;
+    // }
 
-    // Play the case opening sound
-    try {
-        const caseSoundUrl = getApiUrl('/uploads/sounds/case.mp3');
-        console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
-        const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
-        newCaseAudio.volume = volume; // Use current volume state
-        caseAudioRef.current = newCaseAudio; // Store the new audio instance
-        newCaseAudio.play().catch(e => {
-            console.error("Error playing case opening sound:", e);
-            caseAudioRef.current = null; // Clear ref on playback error
-        });
-        // Optional: Clear ref when audio finishes playing naturally
-        newCaseAudio.onended = () => {
-            console.log("[CaseOpener] Case opening sound finished playing.");
-            // Don't clear ref here, might be needed by volume slider or stopped later
-        };
-    } catch (e) {
-        console.error("Error creating case opening audio object:", e);
-        caseAudioRef.current = null; // Clear ref if object creation fails
-    }
+    // Play the case opening sound - REMOVED Block
+    // try {
+    //     const caseSoundUrl = getApiUrl('/uploads/sounds/case.mp3');
+    //     console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
+    //     const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
+    //     newCaseAudio.volume = volume; // Use current volume state
+    //     caseAudioRef.current = newCaseAudio; // Store the new audio instance
+    //     newCaseAudio.play().catch(e => {
+    //         console.error("Error playing case opening sound:", e);
+    //         caseAudioRef.current = null; // Clear ref on playback error
+    //     });
+    //     // Optional: Clear ref when audio finishes playing naturally
+    //     newCaseAudio.onended = () => {
+    //         console.log("[CaseOpener] Case opening sound finished playing.");
+    //         // Don't clear ref here, might be needed by volume slider or stopped later
+    //     };
+    // } catch (e) {
+    //     console.error("Error creating case opening audio object:", e);
+    //     caseAudioRef.current = null; // Clear ref if object creation fails
+    // }
 
 
     const currentWinningItem = getRandomItem();
@@ -306,10 +324,67 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
         // Store animation name and final scroll position for cleanup
         reelRef.current.dataset.animationName = animationName;
         reelRef.current.dataset.finalScroll = finalTargetScroll.toString(); // Store final scroll
+
+        // --- Start Tick Sound Animation Loop ---
+        lastTickIndexRef.current = -1; // Reset last ticked index
+        const tickSoundUrl = getApiUrl('/uploads/sounds/tick.mp3');
+
+        const tickLoop = () => {
+            // Check only for reelRef existence, rely on timeout/unmount to stop
+            if (!reelRef.current) {
+                // console.log("[TickLoop] Stopping: Reel ref is null."); // Debug log REMOVED
+                if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+                return;
+            }
+            // console.log(`[TickLoop] isSpinning state: ${isSpinning}`); // Can add this back if needed
+            // console.log("[TickLoop] Running..."); // Debug log (can be noisy)
+
+            // Get current scroll position
+            const currentTransform = window.getComputedStyle(reelRef.current).transform;
+            let currentScroll = 0;
+            if (currentTransform && currentTransform !== 'none') {
+                const matrix = new DOMMatrixReadOnly(currentTransform);
+                currentScroll = Math.abs(matrix.m41); // Get translateX value
+            }
+
+            // Calculate which item is roughly at the center marker
+            const centerIndex = Math.floor((currentScroll + centerOffset + REEL_ITEM_WIDTH / 2) / REEL_ITEM_WIDTH);
+            // console.log(`[TickLoop] Scroll: ${currentScroll.toFixed(2)}, CenterOffset: ${centerOffset.toFixed(2)}, Calculated Index: ${centerIndex}, Last Index: ${lastTickIndexRef.current}`); // Debug log REMOVED
+
+            if (centerIndex !== lastTickIndexRef.current) {
+                // console.log(`[TickLoop] Condition met: New index ${centerIndex} !== Last index ${lastTickIndexRef.current}. Playing sound.`); // Debug log REMOVED
+                // Play tick sound (fire and forget)
+                try {
+                    const tickAudio = new Audio(tickSoundUrl);
+                    tickAudio.volume = volume;
+                    tickAudio.play().then(() => {
+                        // console.log(`[TickLoop] Played tick for index ${centerIndex}`); // Debug log
+                    }).catch(e => console.error("Error playing tick sound:", e));
+                } catch (e) {
+                    console.error("Error creating tick audio object:", e);
+                }
+                lastTickIndexRef.current = centerIndex; // Update last ticked index
+            }
+
+            // Continue the loop
+            animationFrameRef.current = requestAnimationFrame(tickLoop);
+        };
+
+        // Start the loop
+        animationFrameRef.current = requestAnimationFrame(tickLoop);
+        // --- End Tick Sound Animation Loop ---
     }
 
     // 5. Set timeout to stop spinning state and show result
     setTimeout(() => {
+      // Stop the animation frame loop first
+      if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+          // console.log("[CaseOpener Timeout] Cancelled animation frame."); // Debug log REMOVED
+      }
+
       setIsSpinning(false);
       setWonItem(currentWinningItem); // Set the winning item
 
@@ -327,13 +402,13 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       }
       // --- End Log details ---
 
-      // Stop the case opening sound first
-      if (caseAudioRef.current) {
-          console.log("[CaseOpener] Stopping case opening sound on reveal.");
-          caseAudioRef.current.pause();
-          caseAudioRef.current.src = '';
-          caseAudioRef.current = null;
-      }
+      // Stop the case opening sound first - REMOVED Block
+      // if (caseAudioRef.current) {
+      //     console.log("[CaseOpener] Stopping case opening sound on reveal.");
+      //     caseAudioRef.current.pause();
+      //     caseAudioRef.current.src = '';
+      //     caseAudioRef.current = null;
+      // }
 
       // --- Play Item Sound ---
       if (currentWinningItem?.sound_url) { // Play sound associated with the WON item
