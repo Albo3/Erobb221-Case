@@ -30,8 +30,7 @@
   position: relative; /* For positioning the close button */
   max-width: 90%; /* Max width relative to viewport */
   width: 450px; /* Fixed width, adjust as needed */
-  max-height: 80vh; /* Max height relative to viewport */
-  overflow-y: auto; /* Allow scrolling if content overflows */
+  /* Removed max-height and overflow-y: auto to allow content to expand popup */
   text-align: center; /* Center text content */
   cursor: default; /* Default cursor for the content area */
 }
@@ -112,11 +111,12 @@
   margin-top: 0;
   margin-bottom: 5px;
   color: var(--text); /* Use main theme text color */
-  font-size: 1.1em;
+  font-size: 1.5em;
   text-shadow: 1px 1px 0 var(--border-dark); /* Add subtle shadow */
 }
 
 .popup-item-rules p {
   margin-bottom: 0;
+  font-size: 1.3em;
   white-space: pre-wrap; /* Preserve whitespace and wrap text */
 }
