@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Added useEffect, useMemo
 import { getApiUrl } from '../config';
 import CaseOpener from './CaseOpener';
 import WheelSpinner from './WheelSpinner'; // Import the new component
@@ -22,6 +22,21 @@ interface CaseItem {
   rules?: string | null;
   sound_url?: string | null;
   item_template_id?: number; // Keep optional
+}
+
+// Interface for detailed case data (needed for App state)
+interface CaseData {
+  id: number;
+  name: string;
+  description: string | null;
+  items: CaseItem[];
+}
+
+// Interface for the list of cases fetched from /api/cases
+interface CaseInfo {
+    id: number;
+    name: string;
+    image_path: string | null; // Add image_path
 }
 
 
@@ -62,10 +77,58 @@ function App() {
           return [];
       }
   });
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // State for the ID of the selected case
+  const [selectedCaseData, setSelectedCaseData] = useState<CaseData | null>(null); // State for detailed data of selected case
+  const [isLoadingCaseDetails, setIsLoadingCaseDetails] = useState(false); // Loading state for details fetch
+
+  // Memoize sorted items for the content panel
+  const sortedCaseItems = useMemo(() => {
+    if (!selectedCaseData?.items) return [];
+    // Sort by percentage_chance ascending (rarest first)
+    return [...selectedCaseData.items].sort((a, b) => a.percentage_chance - b.percentage_chance);
+  }, [selectedCaseData]);
+
 
   const handleAdminToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIsAdminMode(event.target.checked);
   };
+
+  // Effect to fetch selected case details when selectedCaseId changes
+  useEffect(() => {
+    if (!selectedCaseId) {
+      setSelectedCaseData(null); // Clear details if no case is selected
+      return;
+    }
+
+    setIsLoadingCaseDetails(true); // Set loading state
+    fetch(getApiUrl(`/api/cases/${selectedCaseId}`)) // Use selectedCaseId state
+      .then(response => {
+        if (!response.ok) {
+          // Try to parse error message from backend if available
+          return response.json().then(errData => {
+            throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+          }).catch(() => {
+            // Fallback if parsing error message fails
+            throw new Error(`HTTP error! status: ${response.status}`);
+          });
+        }
+        return response.json();
+      })
+      .then((data: CaseData) => {
+        if (!data || !Array.isArray(data.items)) {
+           throw new Error("Invalid case data received from server.");
+        }
+        setSelectedCaseData(data); // Set the fetched detailed data
+      })
+      .catch(err => {
+        console.error(`Error fetching case details for ${selectedCaseId}:`, err);
+        setSelectedCaseData(null); // Clear data on error
+        // Optionally, set an error state to display in the panel
+      })
+      .finally(() => setIsLoadingCaseDetails(false)); // Clear loading state
+
+  }, [selectedCaseId]); // Add selectedCaseId to dependency array
+
 
   // Handler for volume change (passed down)
   const handleVolumeChange = (newVolume: number) => {
@@ -143,8 +206,8 @@ function App() {
 
   // Handler for receiving a new unboxed item from CaseOpener/WheelSpinner
   const handleNewUnbox = (newItem: CaseItem) => {
-      // Update the rules display
-      setCurrentItemRules(newItem.rules ?? null);
+      // Update the rules display (now handled by popup)
+      // setCurrentItemRules(newItem.rules ?? null); // Keep this if rules panel might come back
 
       // Update the history panel
       setUnboxedHistory(prevHistory => {
@@ -163,6 +226,11 @@ function App() {
   const handleHistoryItemClick = (item: CaseItem) => {
     setPopupHistoryItem(item);
     setIsHistoryPopupOpen(true);
+  };
+
+  // Handler for when a case is selected in CaseOpener or WheelSpinner
+  const handleCaseSelected = (caseId: string) => {
+    setSelectedCaseId(caseId); // Update the selected case ID in App state
   };
 
   return (
@@ -232,17 +300,28 @@ function App() {
       {/* NEW Wrapper for Flexbox Layout (Rules, Main Content, History) */}
       <div className="content-wrapper">
 
-        {/* Rules Panel (Moved inside wrapper) */}
-        <div className="rules-panel"> {/* Removed inline styles, added class */}
-            <h4>Punishment Rules:</h4>
-            {currentItemRules ? (
-                /* Removed inline font-size */
-                <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {currentItemRules}
-                </p>
-            ) : (
-                 /* Removed inline font-size */
-                <p style={{ color: 'var(--secondary-text)' }}>Unbox an item to see its rules.</p>
+        {/* Case Content Panel (Formerly Rules Panel) */}
+        <div className="case-content-panel"> {/* Renamed class */}
+            <h4>Case Contents:</h4> {/* Updated heading */}
+            {/* Display loading state */}
+            {isLoadingCaseDetails && <p style={{ color: 'var(--secondary-text)' }}>Loading items...</p>}
+            {/* Display sorted case items */}
+            {!isLoadingCaseDetails && selectedCaseData && sortedCaseItems.length > 0 ? (
+              <ul>
+                {sortedCaseItems.map((item) => (
+                  <li key={`${item.name}-${item.item_template_id || 'no-id'}-${item.percentage_chance}`}>
+                    {item.image_url && (
+                      <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
+                    )}
+                    <span style={{ color: item.display_color }}>{item.name}</span>
+                    <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                  </li>
+                ))}
+              </ul>
+            ) : !isLoadingCaseDetails && (
+              <p style={{ color: 'var(--secondary-text)', fontSize: '0.9em' }}>
+                {selectedCaseId ? 'No items found in this case.' : 'Select a case to view its contents.'}
+              </p>
             )}
         </div>
 
@@ -255,7 +334,14 @@ function App() {
             <Tabs>
               <Tab label="Open Case">
                 <main>
-                  <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+                  {/* Pass down selectedCaseId and the handler */}
+                  <CaseOpener 
+                    volume={volume} 
+                    onVolumeChange={handleVolumeChange} 
+                    onNewUnbox={handleNewUnbox} 
+                    selectedCaseId={selectedCaseId} 
+                    onCaseSelected={handleCaseSelected} 
+                  />
                 </main>
               </Tab>
               <Tab label="Create Case">
@@ -273,9 +359,23 @@ function App() {
             // Non-admin mode: Render based on displayMode
             <main>
               {displayMode === 'case' ? (
-                <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+                // Pass down selectedCaseId and the handler
+                <CaseOpener 
+                  volume={volume} 
+                  onVolumeChange={handleVolumeChange} 
+                  onNewUnbox={handleNewUnbox} 
+                  selectedCaseId={selectedCaseId} 
+                  onCaseSelected={handleCaseSelected} 
+                />
               ) : (
-                <WheelSpinner volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+                // Pass down selectedCaseId and the handler
+                <WheelSpinner 
+                  volume={volume} 
+                  onVolumeChange={handleVolumeChange} 
+                  onNewUnbox={handleNewUnbox} 
+                  selectedCaseId={selectedCaseId} 
+                  onCaseSelected={handleCaseSelected} 
+                />
               )}
             </main>
           )}

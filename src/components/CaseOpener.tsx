@@ -43,16 +43,19 @@ interface CaseOpenerProps {
     volume: number;
     onVolumeChange: (newVolume: number) => void;
     onNewUnbox: (item: CaseItem) => void; // Add prop to report unboxed item
+    selectedCaseId: string; // Add prop for receiving selected ID from App
+    onCaseSelected: (caseId: string) => void; // Add callback prop to report selection changes to App
 }
 
-function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { // Destructure props
+function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: selectedCaseIdFromApp, onCaseSelected }: CaseOpenerProps) { // Destructure props, rename selectedCaseId to avoid conflict
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
   // const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>([]); // Remove history state
   // const [volume, setVolume] = useState(0.5); // Remove internal volume state
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
+  // Remove internal selectedCaseId state, use the one passed from App via props
+  // const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,10 +77,10 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
           })
           .then((data: CaseInfo[]) => {
               setAvailableCases(data);
-              if (data.length > 0 && data[0]) {
-                  // Select the first case if available
-                  setSelectedCaseId(data[0].id.toString());
-              } else {
+              // If no case is selected in App yet, and cases are available, select the first one
+              if (!selectedCaseIdFromApp && data.length > 0 && data[0]) {
+                  onCaseSelected(data[0].id.toString()); // Report selection to App
+              } else if (data.length === 0) {
                   // No cases in DB, load a default fallback case
                   console.log("No cases found in DB, loading default fallback case.");
                   // Define a default fallback case with new structure
@@ -95,7 +98,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                   });
                   // Initialize reel for fallback case
                   setReelItems(defaultItems.slice(0, 10)); // Use default items for reel
-                  setSelectedCaseId('');
+                  // setSelectedCaseId(''); // No longer needed
               }
               setError(null);
           })
@@ -107,16 +110,16 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
           .finally(() => setIsLoading(false));
   }, []);
 
-  // Effect to fetch details when selectedCaseId changes
+  // Effect to fetch details when selectedCaseIdFromApp changes
   useEffect(() => {
-      if (!selectedCaseId) {
+      if (!selectedCaseIdFromApp) { // Use prop from App
           setCurrentCaseData(null); // Clear data if no case is selected
           return;
       }
 
       setIsLoading(true);
       setError(null); // Clear previous errors
-      fetch(getApiUrl(`/api/cases/${selectedCaseId}`))
+      fetch(getApiUrl(`/api/cases/${selectedCaseIdFromApp}`)) // Use prop from App
           .then(response => {
               if (!response.ok) {
                   return response.json().then(errData => {
@@ -135,13 +138,13 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               setReelItems(data.items.slice(0, 10)); // Initialize reel
           })
           .catch(err => {
-              console.error(`Error fetching case ${selectedCaseId}:`, err);
+              console.error(`Error fetching case ${selectedCaseIdFromApp}:`, err); // Use prop from App
               setError(`Failed to load case details: ${err.message}`);
               setCurrentCaseData(null); // Clear data on error
           })
           .finally(() => setIsLoading(false));
 
-  }, [selectedCaseId]); // Dependency array includes selectedCaseId
+  }, [selectedCaseIdFromApp]); // Dependency array uses prop from App
 
   // Effect to update volume of currently playing sounds when volume prop changes
   useEffect(() => {
@@ -484,7 +487,8 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
 
 
       {/* Case Opener Reel and Button Section */}
-      {selectedCaseId && currentCaseData && !isLoading && !error && (
+      {/* Use selectedCaseIdFromApp to check if a case is selected */}
+      {selectedCaseIdFromApp && currentCaseData && !isLoading && !error && (
           <div style={{ marginBottom: '20px' }}> {/* Reduced margin */}
               <h2>{currentCaseData.name}</h2>
               {/* Conditionally render description only if it exists */}
@@ -532,8 +536,8 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               availableCases.map(caseInfo => (
                   <div
                       key={caseInfo.id}
-                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
-                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
+                      className={`case-grid-item ${selectedCaseIdFromApp === caseInfo.id.toString() ? 'selected' : ''}`} // Compare with prop from App
+                      onClick={() => onCaseSelected(caseInfo.id.toString())} // Call callback prop on click
                   >
                       {/* Display image if path exists */}
                       {caseInfo.image_path && (
