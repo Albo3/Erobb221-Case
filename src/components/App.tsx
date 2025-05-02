@@ -4,9 +4,11 @@ import CaseOpener from './CaseOpener';
 import WheelSpinner from './WheelSpinner'; // Import the new component
 import CreateCaseForm from './CreateCaseForm';
 import ItemTemplateManager from './ItemTemplateManager';
+import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
 import Tabs, { Tab } from './Tabs'; // Re-add import
 import '../styles/style.css';
 import './CaseOpener.css';
+import './UnboxedItemPopup.css'; // Import popup CSS
 // Assuming Tabs.css might be needed if it exists and has styles
 // import './Tabs.css'; // Add if Tabs.css exists and is needed
 
@@ -29,6 +31,8 @@ function App() {
   const [volume, setVolume] = useState(0.5);
   const [sequenceState, setSequenceState] = useState(0); // 0: initial, 1: volume correct
   const [currentItemRules, setCurrentItemRules] = useState<string | null>(null); // State for current item's rules
+  const [popupHistoryItem, setPopupHistoryItem] = useState<CaseItem | null>(null); // State for the item to show in history popup
+  const [isHistoryPopupOpen, setIsHistoryPopupOpen] = useState(false); // State for history popup visibility
   const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>(() => {
       // Load initial history from localStorage
       try {
@@ -117,6 +121,12 @@ function App() {
           }
           return updatedHistory;
       });
+  };
+
+  // Handler to open the popup for a specific history item
+  const handleHistoryItemClick = (item: CaseItem) => {
+    setPopupHistoryItem(item);
+    setIsHistoryPopupOpen(true);
   };
 
   return (
@@ -244,7 +254,20 @@ function App() {
           ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {unboxedHistory.map((item, index) => (
-                      <li key={`${item.name}-${index}-${Math.random()}`} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px dashed var(--border-color-2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      // Add onClick handler to the list item
+                      <li 
+                        key={`${item.name}-${index}-${Math.random()}`} 
+                        style={{ 
+                          marginBottom: '8px', 
+                          paddingBottom: '8px', 
+                          borderBottom: '1px dashed var(--border-color-2)', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px',
+                          cursor: 'pointer' // Add pointer cursor
+                        }}
+                        onClick={() => handleHistoryItemClick(item)} // Call handler on click
+                      >
                           {/* Optional: Small image preview */}
                           {item.image_url && (
                               <img
@@ -267,6 +290,13 @@ function App() {
         </div> {/* Close History Panel */}
 
       </div> {/* Close NEW content-wrapper */}
+
+      {/* Render the History Item Popup */}
+      <UnboxedItemPopup 
+        item={popupHistoryItem} 
+        isOpen={isHistoryPopupOpen} 
+        onClose={() => setIsHistoryPopupOpen(false)} 
+      />
 
     </div> // Close Outermost app-container
   );
