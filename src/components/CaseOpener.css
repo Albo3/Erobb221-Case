@@ -216,7 +216,3 @@
   /* Styles for each history item */
   transition: background-color 0.2s ease;
 }
-
-.history-panel li:hover {
-   background-color: var(--bg-hover); /* Subtle hover effect */
-}
