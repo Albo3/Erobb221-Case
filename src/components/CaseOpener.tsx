@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'; // Added useLayoutEffect
 import { getApiUrl } from '../config';
 import StyledButton from './StyledButton';
+import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
 import './CaseOpener.css';
+import './UnboxedItemPopup.css'; // Import popup CSS
 // Removed direct JSON import
 // Removed import caseSoundUrl from '/public/sounds/case.mp3';
 
@@ -41,22 +43,29 @@ interface CaseOpenerProps {
     volume: number;
     onVolumeChange: (newVolume: number) => void;
     onNewUnbox: (item: CaseItem) => void; // Add prop to report unboxed item
+    selectedCaseId: string; // Add prop for receiving selected ID from App
+    onCaseSelected: (caseId: string) => void; // Add callback prop to report selection changes to App
 }
 
-function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { // Destructure props
+function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: selectedCaseIdFromApp, onCaseSelected }: CaseOpenerProps) { // Destructure props, rename selectedCaseId to avoid conflict
   const [isSpinning, setIsSpinning] = useState(false);
   const [reelItems, setReelItems] = useState<CaseItem[]>([]);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
   // const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>([]); // Remove history state
   // const [volume, setVolume] = useState(0.5); // Remove internal volume state
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
+  // Remove internal selectedCaseId state, use the one passed from App via props
+  // const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // Store ID as string from select value
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null); // Holds data for the selected case
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPopupOpen, setIsPopupOpen] = useState(false); // State for popup visibility
   const reelRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current ITEM sound instance
-  const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance
+  // const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance - REMOVED
+  const tickAudioRef = useRef<HTMLAudioElement | null>(null); // Ref for the tick sound
+  const animationFrameRef = useRef<number | null>(null); // Ref for the animation frame ID
+  const lastTickIndexRef = useRef<number>(-1); // Ref to track the last item index that ticked
 
   // Effect to fetch the list of available cases on mount
   useEffect(() => {
@@ -68,10 +77,10 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
           })
           .then((data: CaseInfo[]) => {
               setAvailableCases(data);
-              if (data.length > 0 && data[0]) {
-                  // Select the first case if available
-                  setSelectedCaseId(data[0].id.toString());
-              } else {
+              // If no case is selected in App yet, and cases are available, select the first one
+              if (!selectedCaseIdFromApp && data.length > 0 && data[0]) {
+                  onCaseSelected(data[0].id.toString()); // Report selection to App
+              } else if (data.length === 0) {
                   // No cases in DB, load a default fallback case
                   console.log("No cases found in DB, loading default fallback case.");
                   // Define a default fallback case with new structure
@@ -89,7 +98,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
                   });
                   // Initialize reel for fallback case
                   setReelItems(defaultItems.slice(0, 10)); // Use default items for reel
-                  setSelectedCaseId('');
+                  // setSelectedCaseId(''); // No longer needed
               }
               setError(null);
           })
@@ -101,16 +110,16 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
           .finally(() => setIsLoading(false));
   }, []);
 
-  // Effect to fetch details when selectedCaseId changes
+  // Effect to fetch details when selectedCaseIdFromApp changes
   useEffect(() => {
-      if (!selectedCaseId) {
+      if (!selectedCaseIdFromApp) { // Use prop from App
           setCurrentCaseData(null); // Clear data if no case is selected
           return;
       }
 
       setIsLoading(true);
       setError(null); // Clear previous errors
-      fetch(getApiUrl(`/api/cases/${selectedCaseId}`))
+      fetch(getApiUrl(`/api/cases/${selectedCaseIdFromApp}`)) // Use prop from App
           .then(response => {
               if (!response.ok) {
                   return response.json().then(errData => {
@@ -129,13 +138,13 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               setReelItems(data.items.slice(0, 10)); // Initialize reel
           })
           .catch(err => {
-              console.error(`Error fetching case ${selectedCaseId}:`, err);
+              console.error(`Error fetching case ${selectedCaseIdFromApp}:`, err); // Use prop from App
               setError(`Failed to load case details: ${err.message}`);
               setCurrentCaseData(null); // Clear data on error
           })
           .finally(() => setIsLoading(false));
 
-  }, [selectedCaseId]); // Dependency array includes selectedCaseId
+  }, [selectedCaseIdFromApp]); // Dependency array uses prop from App
 
   // Effect to update volume of currently playing sounds when volume prop changes
   useEffect(() => {
@@ -143,11 +152,26 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
       audioRef.current.volume = volume; // Use volume prop
     }
-    if (caseAudioRef.current) { // Update case opening sound volume
-      // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
-      caseAudioRef.current.volume = volume; // Use volume prop
+    // if (caseAudioRef.current) { // Update case opening sound volume - REMOVED
+    //   // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
+    //   caseAudioRef.current.volume = volume; // Use volume prop - REMOVED
+    // }
+    // Also update tick sound volume if it exists
+    if (tickAudioRef.current) {
+        tickAudioRef.current.volume = volume;
     }
   }, [volume]); // Run this effect when volume prop changes
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        console.log("[CaseOpener Cleanup] Cancelled animation frame.");
+      }
+    };
+  }, []); // Empty dependency array ensures this runs only on mount and unmount
+
 
   // Function to get a random item based on custom percentage chance
   const getRandomItem = (): CaseItem | null => {
@@ -190,33 +214,33 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
         audioRef.current.src = ''; // Detach source
         audioRef.current = null;
     }
-    if (caseAudioRef.current) {
-        console.log("[CaseOpener] Stopping previous case opening sound.");
-        caseAudioRef.current.pause();
-        caseAudioRef.current.src = ''; // Detach source
-        caseAudioRef.current = null;
-    }
+    // if (caseAudioRef.current) { // REMOVED Block
+    //     console.log("[CaseOpener] Stopping previous case opening sound.");
+    //     caseAudioRef.current.pause();
+    //     caseAudioRef.current.src = ''; // Detach source
+    //     caseAudioRef.current = null;
+    // }
 
-    // Play the case opening sound
-    try {
-        const caseSoundUrl = getApiUrl('/uploads/sounds/case.mp3');
-        console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
-        const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
-        newCaseAudio.volume = volume; // Use current volume state
-        caseAudioRef.current = newCaseAudio; // Store the new audio instance
-        newCaseAudio.play().catch(e => {
-            console.error("Error playing case opening sound:", e);
-            caseAudioRef.current = null; // Clear ref on playback error
-        });
-        // Optional: Clear ref when audio finishes playing naturally
-        newCaseAudio.onended = () => {
-            console.log("[CaseOpener] Case opening sound finished playing.");
-            // Don't clear ref here, might be needed by volume slider or stopped later
-        };
-    } catch (e) {
-        console.error("Error creating case opening audio object:", e);
-        caseAudioRef.current = null; // Clear ref if object creation fails
-    }
+    // Play the case opening sound - REMOVED Block
+    // try {
+    //     const caseSoundUrl = getApiUrl('/uploads/sounds/case.mp3');
+    //     console.log(`[CaseOpener] Attempting to play case opening sound from uploads URL: ${caseSoundUrl}`);
+    //     const newCaseAudio = new Audio(caseSoundUrl); // Use the correct URL
+    //     newCaseAudio.volume = volume; // Use current volume state
+    //     caseAudioRef.current = newCaseAudio; // Store the new audio instance
+    //     newCaseAudio.play().catch(e => {
+    //         console.error("Error playing case opening sound:", e);
+    //         caseAudioRef.current = null; // Clear ref on playback error
+    //     });
+    //     // Optional: Clear ref when audio finishes playing naturally
+    //     newCaseAudio.onended = () => {
+    //         console.log("[CaseOpener] Case opening sound finished playing.");
+    //         // Don't clear ref here, might be needed by volume slider or stopped later
+    //     };
+    // } catch (e) {
+    //     console.error("Error creating case opening audio object:", e);
+    //     caseAudioRef.current = null; // Clear ref if object creation fails
+    // }
 
 
     const currentWinningItem = getRandomItem();
@@ -306,12 +330,72 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
         // Store animation name and final scroll position for cleanup
         reelRef.current.dataset.animationName = animationName;
         reelRef.current.dataset.finalScroll = finalTargetScroll.toString(); // Store final scroll
+
+        // --- Start Tick Sound Animation Loop ---
+        lastTickIndexRef.current = -1; // Reset last ticked index
+        const tickSoundUrl = getApiUrl('/uploads/sounds/tick.mp3');
+
+        const tickLoop = () => {
+            // Check only for reelRef existence, rely on timeout/unmount to stop
+            if (!reelRef.current) {
+                // console.log("[TickLoop] Stopping: Reel ref is null."); // Debug log REMOVED
+                if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+                return;
+            }
+            // console.log(`[TickLoop] isSpinning state: ${isSpinning}`); // Can add this back if needed
+            // console.log("[TickLoop] Running..."); // Debug log (can be noisy)
+
+            // Get current scroll position
+            const currentTransform = window.getComputedStyle(reelRef.current).transform;
+            let currentScroll = 0;
+            if (currentTransform && currentTransform !== 'none') {
+                const matrix = new DOMMatrixReadOnly(currentTransform);
+                currentScroll = Math.abs(matrix.m41); // Get translateX value
+            }
+
+            // Calculate which item is roughly at the center marker
+            const centerIndex = Math.floor((currentScroll + centerOffset + REEL_ITEM_WIDTH / 2) / REEL_ITEM_WIDTH);
+            // console.log(`[TickLoop] Scroll: ${currentScroll.toFixed(2)}, CenterOffset: ${centerOffset.toFixed(2)}, Calculated Index: ${centerIndex}, Last Index: ${lastTickIndexRef.current}`); // Debug log REMOVED
+
+            if (centerIndex !== lastTickIndexRef.current) {
+                // console.log(`[TickLoop] Condition met: New index ${centerIndex} !== Last index ${lastTickIndexRef.current}. Playing sound.`); // Debug log REMOVED
+                // Play tick sound (fire and forget)
+                try {
+                    const tickAudio = new Audio(tickSoundUrl);
+                    tickAudio.volume = volume;
+                    tickAudio.play().then(() => {
+                        // console.log(`[TickLoop] Played tick for index ${centerIndex}`); // Debug log
+                    }).catch(e => console.error("Error playing tick sound:", e));
+                } catch (e) {
+                    console.error("Error creating tick audio object:", e);
+                }
+                lastTickIndexRef.current = centerIndex; // Update last ticked index
+            }
+
+            // Continue the loop
+            animationFrameRef.current = requestAnimationFrame(tickLoop);
+        };
+
+        // Start the loop
+        animationFrameRef.current = requestAnimationFrame(tickLoop);
+        // --- End Tick Sound Animation Loop ---
     }
 
     // 5. Set timeout to stop spinning state and show result
     setTimeout(() => {
+      // Stop the animation frame loop first
+      if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+          // console.log("[CaseOpener Timeout] Cancelled animation frame."); // Debug log REMOVED
+      }
+
       setIsSpinning(false);
       setWonItem(currentWinningItem); // Set the winning item
+      if (currentWinningItem) { // Only open popup if an item was actually won
+          setIsPopupOpen(true); // Open the popup
+      }
 
       // Call the callback prop to report the unboxed item to App
       if (currentWinningItem) {
@@ -327,13 +411,13 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       }
       // --- End Log details ---
 
-      // Stop the case opening sound first
-      if (caseAudioRef.current) {
-          console.log("[CaseOpener] Stopping case opening sound on reveal.");
-          caseAudioRef.current.pause();
-          caseAudioRef.current.src = '';
-          caseAudioRef.current = null;
-      }
+      // Stop the case opening sound first - REMOVED Block
+      // if (caseAudioRef.current) {
+      //     console.log("[CaseOpener] Stopping case opening sound on reveal.");
+      //     caseAudioRef.current.pause();
+      //     caseAudioRef.current.src = '';
+      //     caseAudioRef.current = null;
+      // }
 
       // --- Play Item Sound ---
       if (currentWinningItem?.sound_url) { // Play sound associated with the WON item
@@ -399,53 +483,12 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
-      {/* Won Item Display Area (Moved Above Reel) */}
-      {/* Further reduced minHeight, marginBottom, paddingBottom */}
-      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-          {wonItem && !isSpinning && (
-              <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You unboxed:</h3> {/* Reduced margin */}
-                  <p style={{
-                      color: wonItem.display_color || 'white', // Use display_color
-                      fontSize: '1.4em', // Keep font size
-                      fontWeight: 'bold',
-                      border: `1px solid ${wonItem.display_color || 'white'}`, // Use display_color
-                      padding: '7px 10px', // Increased padding
-                      display: 'inline-block',
-                      marginTop: '3px', // Keep margin
-                      backgroundColor: 'var(--secondary-bg)', // Reverted to original background
-                      textShadow: '1px 1px 2px rgba(0, 0, 0, 0.6)', // Made shadow weaker
-                      letterSpacing: '1px' // Added letter spacing
-                  }}>
-                      {wonItem.name}
-                  </p>
-                  {/* Display Image if URL exists */}
-                  {wonItem.image_url && (
-                      <img
-                          src={getApiUrl(wonItem.image_url)}
-                          alt={wonItem.name}
-                          style={{
-                              display: 'block',
-                              width: '150px', // Reduced size
-                              height: '150px', // Reduced size
-                              objectFit: 'contain',
-                              margin: '8px auto', // Reduced margin
-                              border: '1px solid var(--border-color)',
-                              backgroundColor: 'var(--input-bg)'
-                          }}
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                  )}
-                  {/* Rules display removed from here - now handled in App.tsx left panel */}
-              </div>
-          )}
-          {/* Placeholder text if nothing won yet */}
-          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Click "Open Case" to begin</p>}
-      </div>
+      {/* Placeholder div removed */}
 
 
       {/* Case Opener Reel and Button Section */}
-      {selectedCaseId && currentCaseData && !isLoading && !error && (
+      {/* Use selectedCaseIdFromApp to check if a case is selected */}
+      {selectedCaseIdFromApp && currentCaseData && !isLoading && !error && (
           <div style={{ marginBottom: '20px' }}> {/* Reduced margin */}
               <h2>{currentCaseData.name}</h2>
               {/* Conditionally render description only if it exists */}
@@ -493,8 +536,8 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
               availableCases.map(caseInfo => (
                   <div
                       key={caseInfo.id}
-                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
-                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
+                      className={`case-grid-item ${selectedCaseIdFromApp === caseInfo.id.toString() ? 'selected' : ''}`} // Compare with prop from App
+                      onClick={() => onCaseSelected(caseInfo.id.toString())} // Call callback prop on click
                   >
                       {/* Display image if path exists */}
                       {caseInfo.image_path && (
@@ -520,6 +563,13 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox }: CaseOpenerProps) { /
       {/* </div> */} {/* Removed closing tag for outer flex container */}
 
       {/* History Panel Removed - Now handled in App.tsx */}
+
+      {/* Render the UnboxedItemPopup */}
+      <UnboxedItemPopup 
+        item={wonItem} 
+        isOpen={isPopupOpen} 
+        onClose={() => setIsPopupOpen(false)} 
+      />
     </div>
   );
 } // <-- Added missing closing brace for CaseOpener function

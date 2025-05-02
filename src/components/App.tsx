@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Added useEffect, useMemo
 import { getApiUrl } from '../config';
 import CaseOpener from './CaseOpener';
 import WheelSpinner from './WheelSpinner'; // Import the new component
 import CreateCaseForm from './CreateCaseForm';
 import ItemTemplateManager from './ItemTemplateManager';
+import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
 import Tabs, { Tab } from './Tabs'; // Re-add import
 import '../styles/style.css';
 import './CaseOpener.css';
+import './UnboxedItemPopup.css'; // Import popup CSS
 // Assuming Tabs.css might be needed if it exists and has styles
 // import './Tabs.css'; // Add if Tabs.css exists and is needed
 
@@ -22,13 +24,49 @@ interface CaseItem {
   item_template_id?: number; // Keep optional
 }
 
+// Interface for detailed case data (needed for App state)
+interface CaseData {
+  id: number;
+  name: string;
+  description: string | null;
+  items: CaseItem[];
+}
+
+// Interface for the list of cases fetched from /api/cases
+interface CaseInfo {
+    id: number;
+    name: string;
+    image_path: string | null; // Add image_path
+}
+
 
 function App() {
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [displayMode, setDisplayMode] = useState<'case' | 'wheel'>('case'); // State for display mode
-  const [volume, setVolume] = useState(0.5);
+  // Load display mode from localStorage, default to 'case'
+  const [displayMode, setDisplayMode] = useState<'case' | 'wheel'>(() => {
+    try {
+      const storedMode = localStorage.getItem('displayMode');
+      return (storedMode === 'case' || storedMode === 'wheel') ? storedMode : 'case';
+    } catch (e) {
+      console.error("Failed to load displayMode from localStorage", e);
+      return 'case';
+    }
+  });
+  // Load volume from localStorage, default to 0.5
+  const [volume, setVolume] = useState(() => {
+    try {
+      const storedVolume = localStorage.getItem('volume');
+      const parsedVolume = storedVolume ? parseFloat(storedVolume) : 0.5;
+      return isNaN(parsedVolume) ? 0.5 : parsedVolume;
+    } catch (e) {
+      console.error("Failed to load volume from localStorage", e);
+      return 0.5;
+    }
+  });
   const [sequenceState, setSequenceState] = useState(0); // 0: initial, 1: volume correct
   const [currentItemRules, setCurrentItemRules] = useState<string | null>(null); // State for current item's rules
+  const [popupHistoryItem, setPopupHistoryItem] = useState<CaseItem | null>(null); // State for the item to show in history popup
+  const [isHistoryPopupOpen, setIsHistoryPopupOpen] = useState(false); // State for history popup visibility
   const [unboxedHistory, setUnboxedHistory] = useState<CaseItem[]>(() => {
       // Load initial history from localStorage
       try {
@@ -39,14 +77,98 @@ function App() {
           return [];
       }
   });
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // State for the ID of the selected case
+  const [selectedCaseData, setSelectedCaseData] = useState<CaseData | null>(null); // State for detailed data of selected case
+  const [isLoadingCaseDetails, setIsLoadingCaseDetails] = useState(false); // Loading state for details fetch
+
+  // Memoize sorted items for the content panel
+  const sortedCaseItems = useMemo(() => {
+    if (!selectedCaseData?.items) return [];
+    // Sort by percentage_chance ascending (rarest first)
+    return [...selectedCaseData.items].sort((a, b) => a.percentage_chance - b.percentage_chance);
+  }, [selectedCaseData]);
+
 
   const handleAdminToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIsAdminMode(event.target.checked);
   };
 
+  // Effect to fetch selected case details when selectedCaseId changes
+  useEffect(() => {
+    if (!selectedCaseId) {
+      setSelectedCaseData(null); // Clear details if no case is selected
+      return;
+    }
+
+    setIsLoadingCaseDetails(true); // Set loading state
+    fetch(getApiUrl(`/api/cases/${selectedCaseId}`)) // Use selectedCaseId state
+      .then(response => {
+        if (!response.ok) {
+          // Try to parse error message from backend if available
+          return response.json().then(errData => {
+            throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+          }).catch(() => {
+            // Fallback if parsing error message fails
+            throw new Error(`HTTP error! status: ${response.status}`);
+          });
+        }
+        return response.json();
+      })
+      .then((data: CaseData) => {
+        if (!data || !Array.isArray(data.items)) {
+           throw new Error("Invalid case data received from server.");
+        }
+        setSelectedCaseData(data); // Set the fetched detailed data
+
+        // --- Start: Harmonize History Colors ---
+        setUnboxedHistory(prevHistory => {
+            const updatedHistory = prevHistory.map(historyItem => {
+                // Find the corresponding item in the newly fetched case data
+                const matchingCaseItem = data.items.find(caseItem =>
+                    // Match by item_template_id if available, otherwise by name and image_url
+                    (historyItem.item_template_id && caseItem.item_template_id && historyItem.item_template_id === caseItem.item_template_id) ||
+                    (historyItem.name === caseItem.name && historyItem.image_url === caseItem.image_url)
+                );
+
+                if (matchingCaseItem && historyItem.display_color !== matchingCaseItem.display_color) {
+                    // If a match is found and the color is different, update the history item's color
+                    console.log(`Updating history item color for "${historyItem.name}" from ${historyItem.display_color} to ${matchingCaseItem.display_color}`);
+                    return { ...historyItem, display_color: matchingCaseItem.display_color };
+                }
+                // Otherwise, return the original history item
+                return historyItem;
+            });
+
+            // Save the updated history to localStorage
+            try {
+                localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
+            } catch (e) {
+                console.error("Failed to save updated history to localStorage", e);
+            }
+
+            return updatedHistory; // Return the updated history array
+        });
+        // --- End: Harmonize History Colors ---
+      })
+      .catch(err => {
+        console.error(`Error fetching case details for ${selectedCaseId}:`, err);
+        setSelectedCaseData(null); // Clear data on error
+        // Optionally, set an error state to display in the panel
+      })
+      .finally(() => setIsLoadingCaseDetails(false)); // Clear loading state
+
+  }, [selectedCaseId]); // Add selectedCaseId to dependency array
+
+
   // Handler for volume change (passed down)
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
+    // Save volume to localStorage
+    try {
+      localStorage.setItem('volume', newVolume.toString());
+    } catch (e) {
+      console.error("Failed to save volume to localStorage", e);
+    }
     // Update sequence state based on volume
     if (newVolume === 0.99) {
       setSequenceState(1);
@@ -100,11 +222,22 @@ function App() {
     console.log("Sequence state reset to 0 after interaction");
   };
 
+  // Handler for display mode change
+  const handleDisplayModeChange = (mode: 'case' | 'wheel') => {
+    setDisplayMode(mode);
+    // Save display mode to localStorage
+    try {
+      localStorage.setItem('displayMode', mode);
+    } catch (e) {
+      console.error("Failed to save displayMode to localStorage", e);
+    }
+  };
+
 
   // Handler for receiving a new unboxed item from CaseOpener/WheelSpinner
   const handleNewUnbox = (newItem: CaseItem) => {
-      // Update the rules display
-      setCurrentItemRules(newItem.rules ?? null);
+      // Update the rules display (now handled by popup)
+      // setCurrentItemRules(newItem.rules ?? null); // Keep this if rules panel might come back
 
       // Update the history panel
       setUnboxedHistory(prevHistory => {
@@ -117,6 +250,17 @@ function App() {
           }
           return updatedHistory;
       });
+  };
+
+  // Handler to open the popup for a specific history item
+  const handleHistoryItemClick = (item: CaseItem) => {
+    setPopupHistoryItem(item);
+    setIsHistoryPopupOpen(true);
+  };
+
+  // Handler for when a case is selected in CaseOpener or WheelSpinner
+  const handleCaseSelected = (caseId: string) => {
+    setSelectedCaseId(caseId); // Update the selected case ID in App state
   };
 
   return (
@@ -147,7 +291,7 @@ function App() {
                     id="displayModeCase" // Add unique ID
                     value="case"
                     checked={displayMode === 'case'}
-                    onChange={() => setDisplayMode('case')}
+                    onChange={() => handleDisplayModeChange('case')} // Use new handler
                   />
                   <label htmlFor="displayModeCase">Case Opening</label> {/* Use htmlFor */}
                 </div>
@@ -158,7 +302,7 @@ function App() {
                     id="displayModeWheel" // Add unique ID
                     value="wheel"
                     checked={displayMode === 'wheel'}
-                    onChange={() => setDisplayMode('wheel')}
+                    onChange={() => handleDisplayModeChange('wheel')} // Use new handler
                   />
                   <label htmlFor="displayModeWheel">Wheel Spin</label> {/* Use htmlFor */}
                 </div>
@@ -186,17 +330,28 @@ function App() {
       {/* NEW Wrapper for Flexbox Layout (Rules, Main Content, History) */}
       <div className="content-wrapper">
 
-        {/* Rules Panel (Moved inside wrapper) */}
-        <div className="rules-panel"> {/* Removed inline styles, added class */}
-            <h4>Punishment Rules:</h4>
-            {currentItemRules ? (
-                /* Removed inline font-size */
-                <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {currentItemRules}
-                </p>
-            ) : (
-                 /* Removed inline font-size */
-                <p style={{ color: 'var(--secondary-text)' }}>Unbox an item to see its rules.</p>
+        {/* Case Content Panel (Formerly Rules Panel) */}
+        <div className="case-content-panel"> {/* Renamed class */}
+            <h4>Case Contents:</h4> {/* Updated heading */}
+            {/* Display loading state */}
+            {isLoadingCaseDetails && <p style={{ color: 'var(--secondary-text)' }}>Loading items...</p>}
+            {/* Display sorted case items */}
+            {!isLoadingCaseDetails && selectedCaseData && sortedCaseItems.length > 0 ? (
+              <ul>
+                {sortedCaseItems.map((item) => (
+                  <li key={`${item.name}-${item.item_template_id || 'no-id'}-${item.percentage_chance}`}>
+                    {item.image_url && (
+                      <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
+                    )}
+                    <span style={{ color: item.display_color }}>{item.name}</span>
+                    <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                  </li>
+                ))}
+              </ul>
+            ) : !isLoadingCaseDetails && (
+              <p style={{ color: 'var(--secondary-text)', fontSize: '0.9em' }}>
+                {selectedCaseId ? 'No items found in this case.' : 'Select a case to view its contents.'}
+              </p>
             )}
         </div>
 
@@ -209,7 +364,14 @@ function App() {
             <Tabs>
               <Tab label="Open Case">
                 <main>
-                  <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+                  {/* Pass down selectedCaseId and the handler */}
+                  <CaseOpener 
+                    volume={volume} 
+                    onVolumeChange={handleVolumeChange} 
+                    onNewUnbox={handleNewUnbox} 
+                    selectedCaseId={selectedCaseId} 
+                    onCaseSelected={handleCaseSelected} 
+                  />
                 </main>
               </Tab>
               <Tab label="Create Case">
@@ -227,9 +389,23 @@ function App() {
             // Non-admin mode: Render based on displayMode
             <main>
               {displayMode === 'case' ? (
-                <CaseOpener volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+                // Pass down selectedCaseId and the handler
+                <CaseOpener 
+                  volume={volume} 
+                  onVolumeChange={handleVolumeChange} 
+                  onNewUnbox={handleNewUnbox} 
+                  selectedCaseId={selectedCaseId} 
+                  onCaseSelected={handleCaseSelected} 
+                />
               ) : (
-                <WheelSpinner volume={volume} onVolumeChange={handleVolumeChange} onNewUnbox={handleNewUnbox} />
+                // Pass down selectedCaseId and the handler
+                <WheelSpinner 
+                  volume={volume} 
+                  onVolumeChange={handleVolumeChange} 
+                  onNewUnbox={handleNewUnbox} 
+                  selectedCaseId={selectedCaseId} 
+                  onCaseSelected={handleCaseSelected} 
+                />
               )}
             </main>
           )}
@@ -244,7 +420,20 @@ function App() {
           ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {unboxedHistory.map((item, index) => (
-                      <li key={`${item.name}-${index}-${Math.random()}`} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px dashed var(--border-color-2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      // Add onClick handler to the list item
+                      <li 
+                        key={`${item.name}-${index}-${Math.random()}`} 
+                        style={{ 
+                          marginBottom: '8px', 
+                          paddingBottom: '8px', 
+                          borderBottom: '1px dashed var(--border-color-2)', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px',
+                          cursor: 'pointer' // Add pointer cursor
+                        }}
+                        onClick={() => handleHistoryItemClick(item)} // Call handler on click
+                      >
                           {/* Optional: Small image preview */}
                           {item.image_url && (
                               <img
@@ -267,6 +456,13 @@ function App() {
         </div> {/* Close History Panel */}
 
       </div> {/* Close NEW content-wrapper */}
+
+      {/* Render the History Item Popup */}
+      <UnboxedItemPopup 
+        item={popupHistoryItem} 
+        isOpen={isHistoryPopupOpen} 
+        onClose={() => setIsHistoryPopupOpen(false)} 
+      />
 
     </div> // Close Outermost app-container
   );

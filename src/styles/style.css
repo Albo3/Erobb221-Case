@@ -105,7 +105,7 @@ header h1 {
 }
 
 /* Style history item text */
-.history-panel ul li span {
+.history-panel-right ul li span {
   font-size: 1.2em; /* Further increased font size */
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Add outline */
   /* We keep the inline color style from App.tsx for rarity */
@@ -151,10 +151,10 @@ header h1 {
   }
 
   /* Side Panels - Updated for Flexbox */
-  .rules-panel,
+  .case-content-panel, /* Renamed from .rules-panel */
   .history-panel-right {
     /* Common styles */
-    max-height: calc(100vh - 120px); /* Keep max height */
+    height: 800px; /* Set a fixed height to make them the same */
     overflow-y: auto; /* Keep scroll */
     background-color: rgba(62, 70, 55, 0.9);
     padding: 10px;
@@ -163,7 +163,7 @@ header h1 {
     flex: 0 0 auto; /* Don't grow, don't shrink, base on width */
   }
 
-  .rules-panel {
+  .case-content-panel { /* Renamed from .rules-panel */
     /* Specific styles for left panel */
     width: 400px; /* Increased width further */
     order: 1; /* Place it first */
@@ -175,15 +175,47 @@ header h1 {
     border-right: 1px solid var(--border-dark); /* Add right border */
   }
 
-  /* Increase font size for text within rules panel */
-  .rules-panel p {
-    font-size: 1.2em; /* Increased font size */
-    /* Keep inline styles from App.tsx for color/whitespace/wordbreak */
+  /* Styling for items within the case content panel (similar to history) */
+  .case-content-panel ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .case-content-panel li {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border-color-2); /* Use a variable if defined, or a suitable color */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .case-content-panel li img {
+    width: 40px; /* Match history panel image size */
+    height: 40px; /* Match history panel image size */
+    object-fit: contain;
+    flex-shrink: 0;
+    border: 1px solid var(--border-dark);
+  }
+
+  .case-content-panel li span {
+    font-size: 1.2em; /* Match history panel font size */
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Match history panel outline */
+    word-break: break-word;
+    /* Color will be set inline */
+  }
+
+  .case-content-panel .item-percentage {
+    margin-left: auto; /* Push percentage to the right */
+    font-size: 0.9em;
+    color: var(--text-3);
+    flex-shrink: 0; /* Prevent shrinking */
   }
 
   .history-panel-right {
      /* Specific styles for right panel */
-     width: 300px; /* Increased width */
+     width: 320px; /* Decreased width */
      order: 3; /* Place it last */
      /* Remove positioning styles (right, border-left, padding-left) */
      /* Keep borders */
@@ -204,22 +236,20 @@ header h1 {
   /* Scrollbars */
 
   ::-webkit-scrollbar {
-    width: 18px;
+    width: 8px; /* Reduced width */
   }
 
   ::-webkit-scrollbar-track {
-    background-color: var(--scrollbar-track);
-    width: 18px;
-    border: 1px solid var(--border-dark);
-    border-left: 0;
+    background-color: rgba(62, 70, 55, 0.5); /* Semi-transparent background color */
+    width: 8px; /* Reduced width */
+    border: none; /* Remove border */
   }
 
   ::-webkit-scrollbar-thumb {
-    width: 17px;
-    background-color: var(--bg);
-    border: 1px solid;
-    border-color: var(--border-light) var(--border-dark) var(--border-dark)
-      var(--border-light);
+    width: 6px; /* Reduced width */
+    background-color: rgba(160, 170, 149, 0.7); /* Semi-transparent thumb color (based on --text-3) */
+    border: none; /* Remove border */
+    border-radius: 4px; /* Add slight rounding */
   }
 
   ::-webkit-scrollbar-corner {
@@ -322,7 +352,7 @@ header h1 {
       align-items: stretch; /* Stretch items to fill width */
     }
 
-    .rules-panel,
+    .case-content-panel, /* Renamed from .rules-panel */
     .history-panel-right,
     .main-content-area {
       width: 100%; /* Make each item take full width */
@@ -330,7 +360,7 @@ header h1 {
       max-height: none; /* Allow panels to take needed height */
     }
 
-    .rules-panel {
+    .case-content-panel { /* Renamed from .rules-panel */
       margin-bottom: 20px; /* Add space below rules panel when stacked */
     }
 

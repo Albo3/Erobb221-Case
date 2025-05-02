@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'; // Import useMemo
 import StyledButton from './StyledButton';
+import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
 import { getApiUrl } from '../config'; // Import the helper
 import './WheelSpinner.css';
 import '../styles/style.css';
 import './CaseOpener.css'; // For grid styles
+import './UnboxedItemPopup.css'; // Import popup CSS
 
 // Define CaseItem interface (matching CaseOpener)
 interface CaseItem {
@@ -182,16 +184,19 @@ interface WheelSpinnerProps {
   volume: number;
   onVolumeChange: (volume: number) => void;
   onNewUnbox: (item: CaseItem) => void;
+  selectedCaseId: string; // Add prop for receiving selected ID from App
+  onCaseSelected: (caseId: string) => void; // Add callback prop to report selection changes to App
 }
 
 // Constants
 const SPIN_DURATION_WHEEL = 6100; // Match CaseOpener duration (6 seconds)
 const WHEEL_SIZE = 700; // Make wheel even larger
 
-const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onNewUnbox }) => {
+const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onNewUnbox, selectedCaseId: selectedCaseIdFromApp, onCaseSelected }) => { // Destructure props, rename selectedCaseId
   // State
   const [availableCases, setAvailableCases] = useState<CaseInfo[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>('');
+  // Remove internal selectedCaseId state, use the one passed from App via props
+  // const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [currentCaseData, setCurrentCaseData] = useState<CaseData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +205,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
   const [isSpinning, setIsSpinning] = useState(false);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
   const [targetRotation, setTargetRotation] = useState(0);
+  const [isPopupOpen, setIsPopupOpen] = useState(false); // State for popup visibility
   const wheelRef = useRef<HTMLDivElement>(null);
 
   // --- Create a memoized list of unique items for rendering ---
@@ -230,12 +236,13 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
           })
           .then((data: CaseInfo[]) => {
               setAvailableCases(data);
-              if (data.length > 0 && data[0]) {
-                  setSelectedCaseId(data[0].id.toString());
-              } else {
+              // If no case is selected in App yet, and cases are available, select the first one
+              if (!selectedCaseIdFromApp && data.length > 0 && data[0]) {
+                  onCaseSelected(data[0].id.toString()); // Report selection to App
+              } else if (data.length === 0) {
                   setError("No cases found. Please create one in Admin Mode.");
                   setCurrentCaseData(null);
-                  setSelectedCaseId('');
+                  // setSelectedCaseId(''); // No longer needed
               }
           })
           .catch(err => {
@@ -246,15 +253,15 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
           .finally(() => setIsLoading(false));
   }, []);
 
-  // Fetch case details and add weights
+  // Fetch case details and add weights based on selectedCaseIdFromApp
   useEffect(() => {
-      if (!selectedCaseId) {
+      if (!selectedCaseIdFromApp) { // Use prop from App
           setCurrentCaseData(null);
           return;
       }
       setIsLoading(true);
       setError(null);
-      fetch(getApiUrl(`/api/cases/${selectedCaseId}`)) // Use helper
+      fetch(getApiUrl(`/api/cases/${selectedCaseIdFromApp}`)) // Use prop from App
           .then(response => {
               if (!response.ok) {
                   return response.json().then(errData => { throw new Error(errData.error || `HTTP error! status: ${response.status}`); })
@@ -283,20 +290,20 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
               console.log("Setting case data with", shuffledItems.length, "shuffled valid items");
               
               setCurrentCaseData({ ...data, items: shuffledItems }); // Set SHUFFLED valid items
-              setWonItem(null);
+              setWonItem(null); // Clear won item when case changes
               if (wheelRef.current) {
                   wheelRef.current.style.transition = 'none';
                   wheelRef.current.style.transform = 'rotate(0deg)';
               }
-              setTargetRotation(0);
+              setTargetRotation(0); // Reset wheel rotation
           })
           .catch(err => {
-              console.error(`Error fetching case ${selectedCaseId}:`, err);
+              console.error(`Error fetching case ${selectedCaseIdFromApp}:`, err); // Use prop from App
               setError(`Failed to load case details: ${err.message}`);
               setCurrentCaseData(null);
           })
           .finally(() => setIsLoading(false));
-  }, [selectedCaseId]);
+  }, [selectedCaseIdFromApp]); // Dependency array uses prop from App
 
   // Update audio volume
   useEffect(() => {
@@ -449,6 +456,9 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
     // Set timeout for results // <<< Restoring this block
     setTimeout(() => {
         setWonItem(winningItem);
+        if (winningItem) { // Only open popup if an item was actually won
+            setIsPopupOpen(true); // Open the popup
+        }
         onNewUnbox(winningItem);
         setIsSpinning(false);
         console.log("Wheel stopped. Won:", winningItem);
@@ -531,23 +541,7 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
       {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red', marginBottom: '20px' }}>Error: {error}</p>}
 
-      {/* Won Item Display Area */}
-      <div style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-          {wonItem && !isSpinning && (
-              <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ fontSize: '1.1em', marginBottom: '3px' }}>You spun:</h3>
-                  <p style={{ color: wonItem.display_color || 'white', fontSize: '1.3em', fontWeight: 'bold', border: `2px solid ${wonItem.display_color || 'white'}`, padding: '6px 10px', display: 'inline-block', marginTop: '3px', backgroundColor: 'var(--secondary-bg)' }}>
-                      {wonItem.name}
-                  </p>
-                  {wonItem.image_url && (
-                          // image_url from API already includes the path, just need base
-                          <img src={getApiUrl(wonItem.image_url)} alt={wonItem.name} style={{ display: 'block', width: '150px', height: '150px', objectFit: 'contain', margin: '8px auto', border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
-                      )}
-                      {/* Rules display removed */}
-                  </div>
-              )}
-          {!wonItem && !isSpinning && <p style={{ color: 'var(--secondary-text)' }}>Select a case and click "Spin Wheel"</p>}
-      </div>
+      {/* Placeholder div removed */}
 
       {/* Wheel Display Area & Spin Button */}
       {currentCaseData && !isLoading && !error && (
@@ -628,8 +622,8 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
               availableCases.map(caseInfo => (
                   <div
                       key={caseInfo.id}
-                      className={`case-grid-item ${selectedCaseId === caseInfo.id.toString() ? 'selected' : ''}`}
-                      onClick={() => setSelectedCaseId(caseInfo.id.toString())}
+                      className={`case-grid-item ${selectedCaseIdFromApp === caseInfo.id.toString() ? 'selected' : ''}`} // Compare with prop from App
+                      onClick={() => onCaseSelected(caseInfo.id.toString())} // Call callback prop on click
                   >
                       {caseInfo.image_path && (
                           // image_path from API already includes the path, just need base
@@ -643,6 +637,13 @@ const WheelSpinner: React.FC<WheelSpinnerProps> = ({ volume, onVolumeChange, onN
           )}
           {isLoading && <p style={{ gridColumn: '1/-1' }}>Loading cases...</p>}
       </div>
+
+      {/* Render the UnboxedItemPopup */}
+      <UnboxedItemPopup 
+        item={wonItem} 
+        isOpen={isPopupOpen} 
+        onClose={() => setIsPopupOpen(false)} 
+      />
     </div>
   );
 };
