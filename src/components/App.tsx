@@ -342,11 +342,36 @@ function App() {
               <ul>
                 {sortedCaseItems.map((item) => (
                   <li key={`${item.name}-${item.item_template_id || 'no-id'}-${item.percentage_chance}`}>
-                    {item.image_url && (
-                      <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
-                    )}
-                    <span style={{ color: item.display_color }}>{item.name}</span>
-                    <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                    {/* Keep the flex container for layout */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                      {/* Conditionally wrap image or name with tooltip */}
+                      {item.image_url ? (
+                        // If image exists, wrap image with tooltip
+                        <div className="cs-tooltip" style={{ display: 'inline-block', verticalAlign: 'middle' }}> {/* Add display style */}
+                          <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
+                          {item.rules && (
+                            <span className="text">
+                              {item.rules}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        // If no image, wrap name with tooltip (placeholder or actual name)
+                        <div className="cs-tooltip" style={{ display: 'inline-block', verticalAlign: 'middle' }}> {/* Add display style */}
+                          <span style={{ color: item.display_color }}>{item.name}</span>
+                           {item.rules && (
+                             <span className="text">
+                               {item.rules}
+                             </span>
+                           )}
+                         </div>
+                      )}
+                      {/* Display name separately only if image exists (otherwise it's already wrapped) */}
+                      {item.image_url && (
+                         <span style={{ color: item.display_color }}>{item.name}</span>
+                      )}
+                      <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                    </div>
                   </li>
                 ))}
               </ul>
