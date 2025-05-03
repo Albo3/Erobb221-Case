@@ -286,7 +286,7 @@ function App() {
               <fieldset className="cs-fieldset" style={{ border: 'none', padding: 0, margin: 0 }}> {/* Remove default fieldset border/padding */}
                 {/* Optional: Add a legend if desired, or remove if not needed */}
                 {/* <legend>Select Mode</legend> */}
-                <div className="radio-wrapper" style={{ marginBottom: '5px' }}> {/* Use div as wrapper, add spacing */}
+                <div className="radio-wrapper"> {/* Use div as wrapper, REMOVED inline margin */}
                   <input
                     type="radio"
                     name="displayMode"

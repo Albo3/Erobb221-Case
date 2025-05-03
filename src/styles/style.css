@@ -104,6 +104,18 @@ header h1 {
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
 
+/* Style header radio buttons for horizontal layout */
+header .cs-fieldset .radio-wrapper {
+  display: inline-block; /* Display items horizontally */
+  margin-right: 15px; /* Add space between radio buttons */
+  margin-bottom: 0; /* Override any default bottom margin */
+}
+
+/* Remove margin from the last radio wrapper */
+header .cs-fieldset .radio-wrapper:last-child {
+  margin-right: 0;
+}
+
 /* Style history item text */
 .history-panel-right ul li span {
   font-size: 1.2em; /* Further increased font size */
