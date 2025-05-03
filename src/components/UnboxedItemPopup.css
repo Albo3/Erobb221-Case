@@ -76,12 +76,13 @@
 }
 
 .popup-item-name {
-  font-size: 1.6em; /* Larger item name */
+  font-size: 1.7em; /* Increased from 1.6em */
   font-weight: bold;
   margin-top: 5px;
   margin-bottom: 15px; /* Space below name */
   /* Color is set inline based on item.display_color */
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Added black outline */
+  letter-spacing: 1.5px; /* Added character spacing */
 }
 
 .popup-item-image {
@@ -119,4 +120,5 @@
   margin-bottom: 0;
   font-size: 1.3em;
   white-space: pre-wrap; /* Preserve whitespace and wrap text */
+  letter-spacing: 0.5px; 
 }
