@@ -168,6 +168,7 @@ header .cs-fieldset .radio-wrapper:last-child {
     /* Common styles */
     height: 800px; /* Set a fixed height to make them the same */
     overflow-y: auto; /* Keep scroll */
+    overflow-x: hidden; /* Prevent horizontal scrollbar from tooltip */
     background-color: rgba(62, 70, 55, 0.9);
     padding: 10px;
     border: 1px solid var(--border-dark);
@@ -782,17 +783,24 @@ header .cs-fieldset .radio-wrapper:last-child {
 
     .text {
       visibility: hidden;
-      width: -moz-max-content;
-      width: max-content;
+      /* width: -moz-max-content; */
+      /* width: max-content; */ /* Let content wrap */
+      max-width: 250px; /* Reduced max-width */
+      white-space: pre-wrap; /* Allow wrapping */
       background-color: var(--secondary-accent);
-      color: black;
-      text-align: center;
-      font-size: 1rem;
-      line-height: 0.9375rem;
+      color: white !important; /* Ensure text color is white, override others */
+      text-align: left; /* Align left */
+      font-size: 1.3rem;
+      line-height: 1.2; /* Adjust line height */
       position: absolute;
-      z-index: 1;
+      z-index: 10; /* Ensure tooltip is above other elements */
       border: 1px solid var(--border-dark);
-      padding: 2px 2px 1px;
+      padding: 4px 6px; /* Slightly increase padding */
+      /* Positioning styles */
+      left: 100%; /* Position to the right */
+      top: 0; /* Align with the top of the parent */
+      margin-left: 5px; /* Add space between item and tooltip */
+      pointer-events: none; /* Prevent tooltip from interfering with hover */
     }
   }
 
