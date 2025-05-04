@@ -77,7 +77,16 @@ function App() {
           return [];
       }
   });
-  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // State for the ID of the selected case
+  // Load selectedCaseId from localStorage, default to ''
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(() => {
+    try {
+      const storedCaseId = localStorage.getItem('selectedCaseId');
+      return storedCaseId ?? ''; // Use stored ID if it exists, otherwise default to empty string
+    } catch (e) {
+      console.error("Failed to load selectedCaseId from localStorage", e);
+      return '';
+    }
+  });
   const [selectedCaseData, setSelectedCaseData] = useState<CaseData | null>(null); // State for detailed data of selected case
   const [isLoadingCaseDetails, setIsLoadingCaseDetails] = useState(false); // Loading state for details fetch
 
@@ -263,6 +272,12 @@ function App() {
   // Handler for when a case is selected in CaseOpener or WheelSpinner
   const handleCaseSelected = (caseId: string) => {
     setSelectedCaseId(caseId); // Update the selected case ID in App state
+    // Save selectedCaseId to localStorage
+    try {
+      localStorage.setItem('selectedCaseId', caseId);
+    } catch (e) {
+      console.error("Failed to save selectedCaseId to localStorage", e);
+    }
   };
 
   return (
