@@ -129,37 +129,8 @@ function App() {
         if (!data || !Array.isArray(data.items)) {
            throw new Error("Invalid case data received from server.");
         }
-        setSelectedCaseData(data); // Set the fetched detailed data
+         setSelectedCaseData(data); // Set the fetched detailed data
 
-        // --- Start: Harmonize History Colors ---
-        setUnboxedHistory(prevHistory => {
-            const updatedHistory = prevHistory.map(historyItem => {
-                // Find the corresponding item in the newly fetched case data
-                const matchingCaseItem = data.items.find(caseItem =>
-                    // Match by item_template_id if available, otherwise by name and image_url
-                    (historyItem.item_template_id && caseItem.item_template_id && historyItem.item_template_id === caseItem.item_template_id) ||
-                    (historyItem.name === caseItem.name && historyItem.image_url === caseItem.image_url)
-                );
-
-                if (matchingCaseItem && historyItem.display_color !== matchingCaseItem.display_color) {
-                    // If a match is found and the color is different, update the history item's color
-                    console.log(`Updating history item color for "${historyItem.name}" from ${historyItem.display_color} to ${matchingCaseItem.display_color}`);
-                    return { ...historyItem, display_color: matchingCaseItem.display_color };
-                }
-                // Otherwise, return the original history item
-                return historyItem;
-            });
-
-            // Save the updated history to localStorage
-            try {
-                localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
-            } catch (e) {
-                console.error("Failed to save updated history to localStorage", e);
-            }
-
-            return updatedHistory; // Return the updated history array
-        });
-        // --- End: Harmonize History Colors ---
       })
       .catch(err => {
         console.error(`Error fetching case details for ${selectedCaseId}:`, err);
