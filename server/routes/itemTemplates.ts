@@ -269,4 +269,109 @@ itemTemplatesApp.put('/:id', async (c) => {
     }
 });
 
+// DELETE /api/item-templates/:id - Delete an item template
+itemTemplatesApp.delete('/:id', async (c) => {
+    const idParam = c.req.param('id');
+    const id = parseInt(idParam, 10);
+    console.log(`DELETE /api/item-templates/${id} requested`);
+
+    if (isNaN(id)) {
+        return c.json({ error: 'Invalid item template ID provided.' }, 400);
+    }
+
+    try {
+        // Fetch existing template to get file paths for potential deletion
+        const selectStmt = db.prepare('SELECT base_name, image_path, sound_path FROM item_templates WHERE id = ?');
+        const templateToDelete = selectStmt.get(id) as { base_name: string, image_path: string | null, sound_path: string | null } | null;
+
+        if (!templateToDelete) {
+            return c.json({ error: 'Item template not found.' }, 404);
+        }
+
+        db.exec('BEGIN TRANSACTION');
+        try {
+            const deleteStmt = db.prepare('DELETE FROM item_templates WHERE id = ?');
+            const result = deleteStmt.run(id);
+
+            if (result.changes === 0) {
+                // Should not happen if templateToDelete was found, but as a safeguard
+                throw new Error('Failed to delete item template from database.');
+            }
+
+            db.exec('COMMIT');
+            console.log(`Item Template '${templateToDelete.base_name}' (ID: ${id}) deleted successfully from DB.`);
+
+            // After successful DB commit, attempt to delete associated files if they are no longer referenced
+            let imageFileDeleted = false;
+            let soundFileDeleted = false;
+
+            // Check and delete image file
+            if (templateToDelete.image_path) {
+                const imagePath = templateToDelete.image_path;
+                const isImageUsedByOtherTemplatesStmt = db.prepare('SELECT 1 FROM item_templates WHERE image_path = ? LIMIT 1');
+                const isImageUsedByCasesStmt = db.prepare('SELECT 1 FROM cases WHERE image_path = ? LIMIT 1');
+
+                const imageInOtherTemplates = isImageUsedByOtherTemplatesStmt.get(imagePath);
+                const imageInCases = isImageUsedByCasesStmt.get(imagePath);
+
+                if (!imageInOtherTemplates && !imageInCases) {
+                    try {
+                        await unlink(join('.', imagePath)); // Assumes path is relative to project root e.g., 'uploads/images/file.png'
+                        imageFileDeleted = true;
+                        console.log(`Deleted image file: ${imagePath}`);
+                    } catch (e: any) {
+                        // ENOENT means file not found, which is fine if it was already deleted or never existed
+                        if (e.code !== 'ENOENT') {
+                            console.error(`Error deleting image file ${imagePath}:`, e);
+                        } else {
+                            console.log(`Image file ${imagePath} not found for deletion, possibly already deleted.`);
+                        }
+                    }
+                } else {
+                    console.log(`Image file ${imagePath} is still in use by other templates or cases, not deleting.`);
+                }
+            }
+
+            // Check and delete sound file
+            if (templateToDelete.sound_path) {
+                const soundPath = templateToDelete.sound_path;
+                const isSoundUsedByOtherTemplatesStmt = db.prepare('SELECT 1 FROM item_templates WHERE sound_path = ? LIMIT 1');
+                const soundInOtherTemplates = isSoundUsedByOtherTemplatesStmt.get(soundPath);
+
+                if (!soundInOtherTemplates) {
+                    try {
+                        await unlink(join('.', soundPath)); // Assumes path is relative to project root
+                        soundFileDeleted = true;
+                        console.log(`Deleted sound file: ${soundPath}`);
+                    } catch (e: any) {
+                        if (e.code !== 'ENOENT') {
+                            console.error(`Error deleting sound file ${soundPath}:`, e);
+                        } else {
+                            console.log(`Sound file ${soundPath} not found for deletion, possibly already deleted.`);
+                        }
+                    }
+                } else {
+                    console.log(`Sound file ${soundPath} is still in use by other templates, not deleting.`);
+                }
+            }
+
+            return c.json({
+                message: `Item template '${templateToDelete.base_name}' deleted successfully.`,
+                imageFileDeleted,
+                soundFileDeleted
+            });
+
+        } catch (dbError) {
+            console.error('Item template deletion transaction failed, rolling back:', dbError);
+            db.exec('ROLLBACK');
+            const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+            return c.json({ error: `Item template deletion failed: ${errorMessage}` }, 500);
+        }
+
+    } catch (error: any) {
+        console.error(`Error processing DELETE /api/item-templates/${id}:`, error);
+        return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
+    }
+});
+
 export default itemTemplatesApp;

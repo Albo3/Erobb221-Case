@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { ChangeEvent, FormEvent } from 'react'; // Use type-only imports
 import StyledButton from './StyledButton';
 import { getApiUrl } from '../config';
+import './ItemTemplateManager.css'; // Import the new CSS
 
 // Define structure for Item Template data received from backend
 interface ItemTemplate {
@@ -30,6 +31,7 @@ function ItemTemplateManager() {
     const [newTemplateSoundFile, setNewTemplateSoundFile] = useState<File | null>(null);
     const [newTemplateRulesText, setNewTemplateRulesText] = useState('');
     const [isUploading, setIsUploading] = useState(false); // Tracks create/update state
+    const [isDeleting, setIsDeleting] = useState(false); // Tracks delete state
 
     // State for editing
     const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
@@ -235,6 +237,40 @@ function ItemTemplateManager() {
                 setError(`Failed to ${editingTemplateId ? 'update' : 'create'} template: ${err.message}`);
             })
             .finally(() => setIsUploading(false));
+    };
+
+    // Handle delete click
+    const handleDeleteClick = (templateId: number, templateName: string) => {
+        const confirmationMessage = `Deleting template "${templateName}" (ID: ${templateId}) will also remove it from any cases that use it. Are you sure you want to proceed?`;
+        if (window.confirm(confirmationMessage)) {
+            setIsDeleting(true);
+            setError(null);
+            fetch(getApiUrl(`/api/item-templates/${templateId}`), { method: 'DELETE' })
+                .then(async response => {
+                    if (!response.ok) {
+                        let errorMsg = `HTTP error! status: ${response.status}`;
+                        try {
+                            const errData = await response.json();
+                            errorMsg = errData.error || errorMsg;
+                        } catch (e) { /* Ignore */ }
+                        throw new Error(errorMsg);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert(`Item Template "${templateName}" deleted successfully!`);
+                    fetchItemTemplates(); // Refresh the list
+                    fetchExistingAssets(); // Refresh existing assets in case some are no longer used
+                    if (editingTemplateId === templateId) { // If the deleted template was being edited, reset form
+                        resetForm();
+                    }
+                })
+                .catch(err => {
+                    console.error(`Error deleting item template:`, err);
+                    setError(`Failed to delete template: ${err.message}`);
+                })
+                .finally(() => setIsDeleting(false));
+        }
     };
 
     // Determine current preview paths based on state
@@ -453,33 +489,42 @@ function ItemTemplateManager() {
             {!isLoading && error && <p style={{ color: 'red' }}>Error loading templates: {error}</p>}
             {!isLoading && !error && templates.length === 0 && <p>No item templates created yet.</p>}
 
-            {/* Display list of templates */}
+            {/* Display grid of templates */}
             {!isLoading && templates.length > 0 && (
-                <ul style={{ listStyle: 'none', padding: 0, maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '3px' }}>
+                <div className="template-grid">
                     {templates.map(template => (
-                        <li key={template.id} style={{ borderBottom: '1px solid var(--border-color)', padding: '10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div>
-                                    <strong>{template.base_name}</strong> <span style={{ fontSize: '0.8em', color: 'var(--secondary-text)' }}>(ID: {template.id})</span>
-                                    <br />
-                                    <small style={{ wordBreak: 'break-all', color: 'var(--text-3)' }}>
-                                        Image: {template.image_path ?? 'None'} <br />
-                                        Sound: {template.sound_path ?? 'None'} <br />
-                                        Rules: {template.rules_text ? (template.rules_text.length > 40 ? template.rules_text.substring(0, 40) + '...' : template.rules_text) : 'None'}
-                                    </small>
-                                    <br />
-                                    <small style={{ color: 'var(--text-3)' }}>Created: {new Date(template.created_at).toLocaleString()}</small>
-                                </div>
+                        <div key={template.id} className="template-grid-item">
+                            {template.image_path ? (
+                                <img src={getApiUrl(template.image_path)} alt={template.base_name} />
+                            ) : (
+                                <div className="placeholder-image">No Image</div>
+                            )}
+                            <strong>{template.base_name}</strong>
+                            <span className="template-id">(ID: {template.id})</span>
+                            {/* Optionally display other info like sound/rules if needed, or keep it minimal */}
+                            {/* <small style={{ color: 'var(--text-3)', fontSize: '0.8em', wordBreak: 'break-all' }}>
+                                Sound: {template.sound_path ? template.sound_path.split('/').pop() : 'None'} <br />
+                                Rules: {template.rules_text ? (template.rules_text.length > 20 ? template.rules_text.substring(0, 20) + '...' : template.rules_text) : 'None'}
+                            </small> */}
+                            <div className="actions">
                                 <StyledButton
                                     onClick={() => handleEditClick(template)}
-                                    disabled={isUploading || editingTemplateId === template.id}
+                                    disabled={isUploading || isDeleting || editingTemplateId === template.id}
+                                    style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)'}}
                                 >
                                     Edit
                                 </StyledButton>
+                                <StyledButton
+                                    onClick={() => handleDeleteClick(template.id, template.base_name)}
+                                    disabled={isUploading || isDeleting}
+                                    style={{ backgroundColor: 'var(--button-danger-bg)', color: 'var(--button-danger-text)'}}
+                                >
+                                    Delete
+                                </StyledButton>
                             </div>
-                        </li>
+                        </div>
                     ))}
-                </ul>
+                </div>
             )}
         </div>
     );
