@@ -62,8 +62,8 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
   const [isPopupOpen, setIsPopupOpen] = useState(false); // State for popup visibility
   const reelRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current ITEM sound instance
-  // const caseAudioRef = useRef<HTMLAudioElement | null>(null); // Ref to store current CASE OPENING sound instance - REMOVED
-  const tickAudioRef = useRef<HTMLAudioElement | null>(null); // Ref for the tick sound
+  const tickAudioPoolRef = useRef<HTMLAudioElement[]>([]); // Ref for the tick sound pool
+  const tickAudioPoolIndexRef = useRef<number>(0); // Ref to track the next index in the pool
   const animationFrameRef = useRef<number | null>(null); // Ref for the animation frame ID
   const lastTickIndexRef = useRef<number>(-1); // Ref to track the last item index that ticked
 
@@ -146,19 +146,47 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
 
   }, [selectedCaseIdFromApp]); // Dependency array uses prop from App
 
+  // Effect to preload tick sound pool on mount
+  useEffect(() => {
+    const POOL_SIZE = 4; // Number of audio elements in the pool
+    console.log(`[CaseOpener] Preloading tick sound pool (size: ${POOL_SIZE})...`);
+    const tickSoundUrl = getApiUrl('/uploads/sounds/tick.mp3');
+    const pool: HTMLAudioElement[] = [];
+    for (let i = 0; i < POOL_SIZE; i++) {
+        const audio = new Audio(tickSoundUrl);
+        audio.preload = 'auto';
+        audio.volume = volume; // Set initial volume
+        audio.load();
+        pool.push(audio);
+    }
+    tickAudioPoolRef.current = pool;
+    tickAudioPoolIndexRef.current = 0; // Reset pool index
+
+    // Cleanup function
+    return () => {
+      console.log("[CaseOpener Cleanup] Pausing and detaching preloaded tick sound pool.");
+      tickAudioPoolRef.current.forEach(audio => {
+        if (audio) {
+            audio.pause();
+            audio.src = ''; // Detach source
+        }
+      });
+      tickAudioPoolRef.current = []; // Clear the pool array
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
+
   // Effect to update volume of currently playing sounds when volume prop changes
   useEffect(() => {
     if (audioRef.current) { // Update item sound volume
-      // console.log(`[CaseOpener Volume Effect] Updating ITEM volume to: ${volume}`);
       audioRef.current.volume = volume; // Use volume prop
     }
-    // if (caseAudioRef.current) { // Update case opening sound volume - REMOVED
-    //   // console.log(`[CaseOpener Volume Effect] Updating CASE volume to: ${volume}`);
-    //   caseAudioRef.current.volume = volume; // Use volume prop - REMOVED
-    // }
-    // Also update tick sound volume if it exists
-    if (tickAudioRef.current) {
-        tickAudioRef.current.volume = volume;
+    // Also update tick sound pool volume if it exists and is preloaded
+    if (tickAudioPoolRef.current.length > 0) {
+        tickAudioPoolRef.current.forEach(audio => {
+            if (audio) {
+                audio.volume = volume;
+            }
+        });
     }
   }, [volume]); // Run this effect when volume prop changes
 
@@ -333,7 +361,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
 
         // --- Start Tick Sound Animation Loop ---
         lastTickIndexRef.current = -1; // Reset last ticked index
-        const tickSoundUrl = getApiUrl('/uploads/sounds/tick.mp3');
+        // const tickSoundUrl = getApiUrl('/uploads/sounds/tick.mp3'); // URL is now obtained during preload
 
         const tickLoop = () => {
             // Check only for reelRef existence, rely on timeout/unmount to stop
@@ -354,21 +382,33 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
                 currentScroll = Math.abs(matrix.m41); // Get translateX value
             }
 
-            // Calculate which item is roughly at the center marker
-            const centerIndex = Math.floor((currentScroll + centerOffset + REEL_ITEM_WIDTH / 2) / REEL_ITEM_WIDTH);
-            // console.log(`[TickLoop] Scroll: ${currentScroll.toFixed(2)}, CenterOffset: ${centerOffset.toFixed(2)}, Calculated Index: ${centerIndex}, Last Index: ${lastTickIndexRef.current}`); // Debug log REMOVED
+            // Calculate which item is roughly at the center marker, adjusted by 5px offset
+            const TICK_OFFSET_PX = 5; // Trigger sound 5 pixels earlier
+            const adjustedScroll = currentScroll + TICK_OFFSET_PX;
+            const centerIndex = Math.floor((adjustedScroll + centerOffset + REEL_ITEM_WIDTH / 2) / REEL_ITEM_WIDTH);
+            // console.log(`[TickLoop] Scroll: ${currentScroll.toFixed(2)}, Adjusted: ${adjustedScroll.toFixed(2)}, CenterOffset: ${centerOffset.toFixed(2)}, Calculated Index: ${centerIndex}, Last Index: ${lastTickIndexRef.current}`); // Debug log REMOVED
 
             if (centerIndex !== lastTickIndexRef.current) {
                 // console.log(`[TickLoop] Condition met: New index ${centerIndex} !== Last index ${lastTickIndexRef.current}. Playing sound.`); // Debug log REMOVED
-                // Play tick sound (fire and forget)
-                try {
-                    const tickAudio = new Audio(tickSoundUrl);
-                    tickAudio.volume = volume;
-                    tickAudio.play().then(() => {
-                        // console.log(`[TickLoop] Played tick for index ${centerIndex}`); // Debug log
-                    }).catch(e => console.error("Error playing tick sound:", e));
-                } catch (e) {
-                    console.error("Error creating tick audio object:", e);
+                // Play sound from the pool
+                if (tickAudioPoolRef.current.length > 0) {
+                    try {
+                        const poolIndex = tickAudioPoolIndexRef.current;
+                        const audioToPlay = tickAudioPoolRef.current[poolIndex];
+                        if (audioToPlay) {
+                            audioToPlay.currentTime = 0; // Reset playback position
+                            audioToPlay.play().catch(e => console.error(`Error playing tick sound from pool index ${poolIndex}:`, e));
+                            // console.log(`[TickLoop] Played tick from pool index ${poolIndex} for visual index ${centerIndex}`); // Debug log
+                            // Move to the next audio element in the pool
+                            tickAudioPoolIndexRef.current = (poolIndex + 1) % tickAudioPoolRef.current.length;
+                        } else {
+                             console.warn(`[TickLoop] Audio element at pool index ${poolIndex} is null.`);
+                        }
+                    } catch (e) {
+                        console.error("Error accessing tick audio pool:", e);
+                    }
+                } else {
+                    console.warn("[TickLoop] Tick audio pool not ready or empty.");
                 }
                 lastTickIndexRef.current = centerIndex; // Update last ticked index
             }
