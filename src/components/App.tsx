@@ -77,7 +77,16 @@ function App() {
           return [];
       }
   });
-  const [selectedCaseId, setSelectedCaseId] = useState<string>(''); // State for the ID of the selected case
+  // Load selectedCaseId from localStorage, default to ''
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(() => {
+    try {
+      const storedCaseId = localStorage.getItem('selectedCaseId');
+      return storedCaseId ?? ''; // Use stored ID if it exists, otherwise default to empty string
+    } catch (e) {
+      console.error("Failed to load selectedCaseId from localStorage", e);
+      return '';
+    }
+  });
   const [selectedCaseData, setSelectedCaseData] = useState<CaseData | null>(null); // State for detailed data of selected case
   const [isLoadingCaseDetails, setIsLoadingCaseDetails] = useState(false); // Loading state for details fetch
 
@@ -120,37 +129,8 @@ function App() {
         if (!data || !Array.isArray(data.items)) {
            throw new Error("Invalid case data received from server.");
         }
-        setSelectedCaseData(data); // Set the fetched detailed data
+         setSelectedCaseData(data); // Set the fetched detailed data
 
-        // --- Start: Harmonize History Colors ---
-        setUnboxedHistory(prevHistory => {
-            const updatedHistory = prevHistory.map(historyItem => {
-                // Find the corresponding item in the newly fetched case data
-                const matchingCaseItem = data.items.find(caseItem =>
-                    // Match by item_template_id if available, otherwise by name and image_url
-                    (historyItem.item_template_id && caseItem.item_template_id && historyItem.item_template_id === caseItem.item_template_id) ||
-                    (historyItem.name === caseItem.name && historyItem.image_url === caseItem.image_url)
-                );
-
-                if (matchingCaseItem && historyItem.display_color !== matchingCaseItem.display_color) {
-                    // If a match is found and the color is different, update the history item's color
-                    console.log(`Updating history item color for "${historyItem.name}" from ${historyItem.display_color} to ${matchingCaseItem.display_color}`);
-                    return { ...historyItem, display_color: matchingCaseItem.display_color };
-                }
-                // Otherwise, return the original history item
-                return historyItem;
-            });
-
-            // Save the updated history to localStorage
-            try {
-                localStorage.setItem('unboxHistory', JSON.stringify(updatedHistory));
-            } catch (e) {
-                console.error("Failed to save updated history to localStorage", e);
-            }
-
-            return updatedHistory; // Return the updated history array
-        });
-        // --- End: Harmonize History Colors ---
       })
       .catch(err => {
         console.error(`Error fetching case details for ${selectedCaseId}:`, err);
@@ -263,6 +243,12 @@ function App() {
   // Handler for when a case is selected in CaseOpener or WheelSpinner
   const handleCaseSelected = (caseId: string) => {
     setSelectedCaseId(caseId); // Update the selected case ID in App state
+    // Save selectedCaseId to localStorage
+    try {
+      localStorage.setItem('selectedCaseId', caseId);
+    } catch (e) {
+      console.error("Failed to save selectedCaseId to localStorage", e);
+    }
   };
 
   return (
@@ -342,11 +328,36 @@ function App() {
               <ul>
                 {sortedCaseItems.map((item) => (
                   <li key={`${item.name}-${item.item_template_id || 'no-id'}-${item.percentage_chance}`}>
-                    {item.image_url && (
-                      <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
-                    )}
-                    <span style={{ color: item.display_color }}>{item.name}</span>
-                    <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                    {/* Keep the flex container for layout */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                      {/* Conditionally wrap image or name with tooltip */}
+                      {item.image_url ? (
+                        // If image exists, wrap image with tooltip
+                        <div className="cs-tooltip" style={{ display: 'inline-block', verticalAlign: 'middle' }}> {/* Add display style */}
+                          <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
+                          {item.rules && (
+                            <span className="text">
+                              {item.rules}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        // If no image, wrap name with tooltip (placeholder or actual name)
+                        <div className="cs-tooltip" style={{ display: 'inline-block', verticalAlign: 'middle' }}> {/* Add display style */}
+                          <span style={{ color: item.display_color }}>{item.name}</span>
+                           {item.rules && (
+                             <span className="text">
+                               {item.rules}
+                             </span>
+                           )}
+                         </div>
+                      )}
+                      {/* Display name separately only if image exists (otherwise it's already wrapped) */}
+                      {item.image_url && (
+                         <span style={{ color: item.display_color }}>{item.name}</span>
+                      )}
+                      <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                    </div>
                   </li>
                 ))}
               </ul>

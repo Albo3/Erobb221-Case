@@ -36,7 +36,7 @@ interface CaseInfo {
 
 
 const REEL_ITEM_WIDTH = 150; // Updated width to match CSS (.case-opener-item min-width)
-const SPIN_DURATION = 6000; // Duration of spin animation in ms (Increased to 6s)
+const SPIN_DURATION = 7000; // Duration of spin animation in ms (Increased to 6s)
 
 // Define props interface
 interface CaseOpenerProps {

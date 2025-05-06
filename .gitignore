@@ -35,6 +35,10 @@ vps.md
 
 # User Uploads
 /uploads/
+
+# Cline Rules (Local config)
+/.clinerules/
+
 ethor.md
 # Database Files
 /database.sqlite*

@@ -194,3 +194,6 @@ Managed via `server/db.ts` using `CREATE TABLE` and `ALTER TABLE` statements and
 *   Backend server runs persistently using `pm2`. <!-- ADDED -->
 *   Deployment uses Nginx behind Cloudflare. <!-- ADDED -->
 *   Frontend build process requires manual steps for copying/fixing `index.html`. <!-- ADDED -->
+
+
+bun run scripts/process-existing-images.ts
