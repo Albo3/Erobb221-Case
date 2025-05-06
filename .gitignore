@@ -38,7 +38,7 @@ vps.md
 
 # Cline Rules (Local config)
 /.clinerules/
-
+/.clinerules
 ethor.md
 # Database Files
 /database.sqlite*
