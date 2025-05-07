@@ -73,6 +73,7 @@
     /* Add the animation */
     animation: scrollBackground 30s linear infinite;
     /* Mask removed */
+    font-size: clamp(0.875rem, 0.8rem + 0.5vw, 1.1rem); /* Responsive base font size */
   }
 
   /* Define the scrolling animation */
@@ -95,13 +96,14 @@
 .content-wrapper {
   display: flex;
   gap: 20px; /* Add space between columns */
-  align-items: flex-start; /* Align items to the top */
+  align-items: stretch; /* Stretch items to fill the cross-axis height */
 }
 
 
 /* Add outline to header title */
 header h1 {
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  font-size: 1.8em; /* Default size from App.tsx inline style */
 }
 
 /* Style header radio buttons for horizontal layout */
@@ -166,7 +168,7 @@ header .cs-fieldset .radio-wrapper:last-child {
   .case-content-panel, /* Renamed from .rules-panel */
   .history-panel-right {
     /* Common styles */
-    height: 800px; /* Set a fixed height to make them the same */
+    max-height: 80vh; /* Allow flexibility, prevent excessive height */
     overflow-y: auto; /* Keep scroll */
     overflow-x: hidden; /* Prevent horizontal scrollbar from tooltip */
     background-color: rgba(62, 70, 55, 0.9);
@@ -244,6 +246,7 @@ header .cs-fieldset .radio-wrapper:last-child {
     order: 2; /* Place it in the middle */
     max-width: none; /* Remove max-width constraint */
     margin: 0; /* Remove margin */
+    align-self: flex-start; /* Prevent this panel from stretching vertically due to sibling height */
   }
 
   /* Scrollbars */
@@ -358,7 +361,7 @@ header .cs-fieldset .radio-wrapper:last-child {
   /* REMOVED Media Query that hid panels */
 
   /* NEW Media Query for stacking on small screens */
-  @media (max-width: 900px) { /* Lowered breakpoint */
+  @media (max-width: 800px) { /* Adjusted breakpoint */
     /* Target the content-wrapper for stacking */
     .content-wrapper {
       flex-direction: column; /* Stack elements vertically */
@@ -370,6 +373,7 @@ header .cs-fieldset .radio-wrapper:last-child {
     .main-content-area {
       width: 100%; /* Make each item take full width */
       order: initial; /* Reset order for vertical flow */
+      height: auto; /* Ensure height is determined by content when stacked */
       max-height: none; /* Allow panels to take needed height */
     }
 
@@ -379,6 +383,10 @@ header .cs-fieldset .radio-wrapper:last-child {
 
      .history-panel-right {
       margin-top: 20px; /* Add space above history panel when stacked */
+    }
+
+    header h1 {
+      font-size: 1.5em; /* Smaller h1 for smaller screens */
     }
   }
 

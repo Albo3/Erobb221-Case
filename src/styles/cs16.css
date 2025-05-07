@@ -685,3 +685,83 @@
       position: relative;
     }
   }
+
+/* Media Queries for cs16.css components */
+@media (max-width: 600px) {
+  .cs-dialog {
+    min-width: 0;
+    width: 90vw; /* Make dialogs take most of the viewport width */
+    max-width: 95vw;
+    padding: 2px; /* Slightly reduce padding */
+  }
+
+  .cs-dialog .heading .text {
+    font-size: 0.9rem; /* Slightly smaller dialog title */
+  }
+
+  .cs-dialog .content {
+    padding: 8px; /* Adjust content padding */
+  }
+  
+  .cs-dialog .footer-btns {
+    margin: 2px 4px 4px 0; /* Adjust footer button margins */
+  }
+
+  .cs-dialog .footer-btns .cs-btn {
+    width: auto; /* Allow buttons to size based on content */
+    padding: 3px 8px; /* Adjust button padding */
+    font-size: 0.9rem;
+  }
+
+  .cs-input,
+  .cs-select {
+    /* Allow inputs and selects to take full width if their container does */
+    /* This might require parent containers to also be responsive */
+    /* For now, let's ensure they don't overflow excessively */
+    max-width: 100%; 
+  }
+
+  .cs-slider {
+    width: 100%; /* Allow slider to take full width of its container */
+    max-width: 200px; /* But cap it if container is very wide */
+  }
+  
+  .cs-slider input {
+    width: 100%; /* Make the input track responsive */
+  }
+
+  .cs-tabs .label {
+    padding: 4px; /* Reduce tab label padding */
+    font-size: 0.9rem;
+    min-width: 50px; /* Reduce min-width */
+    height: 25px;
+  }
+  .cs-tabs .radiotab:checked + .label {
+    padding: 4px;
+    height: 27px;
+  }
+  .cs-tabs .panel {
+    padding: 15px; /* Reduce panel padding */
+  }
+
+  .cs-tooltip .text {
+    font-size: 0.9rem; /* Smaller tooltip text */
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 400px) {
+  .cs-dialog .heading .text {
+    font-size: 0.85rem;
+  }
+  .cs-dialog .footer-btns .cs-btn {
+    font-size: 0.85rem;
+  }
+  .cs-tabs .label {
+    font-size: 0.85rem;
+    min-width: 40px;
+  }
+   .cs-tabs .panel {
+    padding: 10px;
+  }
+}
