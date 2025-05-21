@@ -104,6 +104,8 @@ function CreateCaseForm() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingCaseId, setEditingCaseId] = useState<number | null>(null);
+  const [duplicatingCaseId, setDuplicatingCaseId] = useState<number | null>(null); // Added for duplication
+  const [isLoadingDuplicationSource, setIsLoadingDuplicationSource] = useState(false); // Added for duplication loading
   const [editingCaseOriginalImagePath, setEditingCaseOriginalImagePath] = useState<string | null>(null); // Store original path when editing
 
   // Fetch available item templates, cases, and existing assets on component mount
@@ -146,67 +148,89 @@ function CreateCaseForm() {
     fetchInitialData();
   }, []);
 
-  // Fetch full case details when editingCaseId changes
+  // Fetch full case details when editingCaseId or duplicatingCaseId changes
   useEffect(() => {
-      if (editingCaseId === null) {
-          // Reset form if we stop editing (or are creating new)
+      const caseIdToLoad = editingCaseId || duplicatingCaseId;
+      const isDuplicating = duplicatingCaseId !== null && editingCaseId === null;
+
+      if (caseIdToLoad === null) {
+          // Reset form if we stop editing or duplicating (or are creating new)
           setCaseName('');
           setCaseDescription('');
-          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]); // Reset lock state too
-          // Reset image state as well
+          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]);
           setCaseImageFile(null);
           setSelectedExistingCaseImagePath('');
           setClearExistingCaseImage(false);
-          setEditingCaseOriginalImagePath(null);
+          setEditingCaseOriginalImagePath(null); // This will be set by duplication if needed
           if (caseImageInputRef.current) caseImageInputRef.current.value = '';
+          // Ensure duplication loading state is reset if we clear selections
+          if (isLoadingDuplicationSource) setIsLoadingDuplicationSource(false);
           return;
       }
 
-      // Fetch details for the selected case
+      // Fetch details for the selected case (either for editing or duplication)
       const fetchCaseDetails = async () => {
-          setIsLoadingCases(true); // Indicate loading case details
+          if (isDuplicating) {
+              setIsLoadingDuplicationSource(true);
+          } else {
+              setIsLoadingCases(true); // Indicate loading case details for editing
+          }
           setError(null);
           try {
-              const response = await fetch(getApiUrl(`/api/cases/${editingCaseId}`));
+              const response = await fetch(getApiUrl(`/api/cases/${caseIdToLoad}`));
               if (!response.ok) {
                    let errorMsg = `HTTP error! status: ${response.status}`;
-                   try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch(e){}
+                   try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch(e){ console.warn("Could not parse error response as JSON.", e); }
                    throw new Error(errorMsg);
               }
               const data: FullCaseData = await response.json();
 
               // Populate form state
-              setCaseName(data.name);
+              if (isDuplicating) {
+                  setCaseName(`[DUPLICATE] ${data.name}`); // Prepend to indicate duplication
+                  // The editingCaseId is NOT set, so it will be a new case
+              } else {
+                  setCaseName(data.name); // For editing
+              }
               setCaseDescription(data.description ?? '');
-              setEditingCaseOriginalImagePath(data.image_path); // Store original image path
-              // Reset image inputs/selections when starting edit
+              setEditingCaseOriginalImagePath(data.image_path); // Used for preview in both modes
+
+              // Reset image inputs for both edit and duplicate, original path is now stored
               setCaseImageFile(null);
               setSelectedExistingCaseImagePath('');
               setClearExistingCaseImage(false);
               if (caseImageInputRef.current) caseImageInputRef.current.value = '';
-              // Map fetched items
+
               setItems(data.items.map(item => ({
                   id: Math.random(), // Generate temporary client-side ID for React key
                   item_template_id: item.item_template_id,
                   override_name: item.override_name ?? '',
                   percentage_chance: item.percentage_chance,
                   display_color: item.display_color,
-                  isPercentageLocked: false, // Default to unlocked when loading existing case
+                  isPercentageLocked: false, // Default to unlocked
               })));
 
           } catch (err) {
-              console.error(`Error fetching details for case ${editingCaseId}:`, err);
-              setError(err instanceof Error ? err.message : 'Failed to load case details');
-              // Optionally reset form or keep old data? Resetting might be safer.
-              setEditingCaseId(null); // Stop editing on error
+              console.error(`Error fetching details for case ${caseIdToLoad} (isDuplicating: ${isDuplicating}):`, err);
+              setError(err instanceof Error ? err.message : `Failed to load case details for ID ${caseIdToLoad}`);
+              // Reset relevant ID to stop the operation
+              if (isDuplicating) {
+                  setDuplicatingCaseId(null);
+              } else {
+                  setEditingCaseId(null);
+              }
           } finally {
-              setIsLoadingCases(false);
+              if (isDuplicating) {
+                  setIsLoadingDuplicationSource(false);
+              } else {
+                  setIsLoadingCases(false);
+              }
           }
       };
 
       fetchCaseDetails();
 
-  }, [editingCaseId]); // Re-run when editingCaseId changes
+  }, [editingCaseId, duplicatingCaseId]); // Re-run when editingCaseId or duplicatingCaseId changes
 
 
   // --- Image Handling Functions ---
@@ -443,6 +467,19 @@ function CreateCaseForm() {
     }
     // Note: We are NOT strictly enforcing the 100% sum here based on user feedback
 
+    let imagePathToUse = selectedExistingCaseImagePath; // Default to current selection
+
+    // If duplicating and no new image choice has been made, use the source case's image.
+    if (
+        duplicatingCaseId !== null &&         // We are in duplication mode
+        caseImageFile === null &&             // No new file uploaded
+        selectedExistingCaseImagePath === '' && // No existing image explicitly selected from dropdown
+        !clearExistingCaseImage &&            // Image is not being cleared
+        editingCaseOriginalImagePath !== null // The source case had an image
+    ) {
+        imagePathToUse = editingCaseOriginalImagePath;
+    }
+
     // Prepare FormData
     const formData = new FormData();
     formData.append('name', caseName.trim());
@@ -462,21 +499,22 @@ function CreateCaseForm() {
     // Append image data
     if (caseImageFile) {
         formData.append('image_file', caseImageFile);
-    } else if (selectedExistingCaseImagePath) {
-        formData.append('existing_image_path', selectedExistingCaseImagePath);
+    } else if (imagePathToUse) { // Use the determined image path
+        formData.append('existing_image_path', imagePathToUse);
     }
 
-    // Append clear flag if editing
-    if (editingCaseId !== null && clearExistingCaseImage) {
+    // Append clear flag if editing (and not duplicating, as clear applies to existing image)
+    if (editingCaseId !== null && duplicatingCaseId === null && clearExistingCaseImage) {
         formData.append('clear_image', 'true');
     }
 
 
     // Determine URL and Method
-    const url = editingCaseId
-        ? getApiUrl(`/api/cases/${editingCaseId}`)
-        : getApiUrl('/api/cases');
-    const method = editingCaseId ? 'PUT' : 'POST';
+    const isUpdating = editingCaseId !== null && duplicatingCaseId === null;
+    const url = isUpdating
+        ? getApiUrl(`/api/cases/${editingCaseId}`) // Update existing
+        : getApiUrl('/api/cases'); // Create new (either fresh or from duplication)
+    const method = isUpdating ? 'PUT' : 'POST';
 
     setIsSaving(true);
     setError(null);
@@ -497,24 +535,29 @@ function CreateCaseForm() {
       return response.json();
     })
     .then(data => {
-      alert(`Case "${caseName.trim()}" ${editingCaseId ? 'updated' : 'created'} successfully!`); // Use name from state
-      // Reset form and editing state
-      setEditingCaseId(null); // This will trigger the useEffect to reset the form
+      const action = isUpdating ? 'updated' : (duplicatingCaseId ? 'duplicated and saved as new' : 'created');
+      alert(`Case "${caseName.trim()}" ${action} successfully!`);
+      // Reset form and editing/duplicating state
+      setEditingCaseId(null);
+      setDuplicatingCaseId(null); // Also clear duplication ID
+      // The useEffect for these IDs changing will reset the form fields.
+
       // Refetch case list
-       setIsLoadingCases(true); // Keep loading state for cases
+       setIsLoadingCases(true);
        fetch(getApiUrl('/api/cases'))
-         .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
-         .then(setAvailableCases) // Update available cases list
+         .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases after ${action}: ${res.status}`))
+         .then(setAvailableCases)
          .catch(err => {
-             console.error("Failed to refetch cases list:", err);
-             setError(err instanceof Error ? err.message : 'Failed to refetch cases list');
+             console.error(`Failed to refetch cases list after ${action}:`, err);
+             setError(err instanceof Error ? err.message : `Failed to refetch cases list after ${action}`);
          })
-         .finally(() => setIsLoadingCases(false)); // Ensure loading state is cleared
+         .finally(() => setIsLoadingCases(false));
     })
     .catch(error => {
-      console.error(`Error ${editingCaseId ? 'updating' : 'saving'} case:`, error);
-      alert(`Error ${editingCaseId ? 'updating' : 'saving'} case: ${error.message}`);
-      setError(error.message); // Show error to user
+      const action = isUpdating ? 'updating' : (duplicatingCaseId ? 'duplicating' : 'saving');
+      console.error(`Error ${action} case:`, error);
+      alert(`Error ${action} case: ${error.message}`);
+      setError(error.message);
     })
     .finally(() => setIsSaving(false));
   };
@@ -547,8 +590,9 @@ function CreateCaseForm() {
       })
       .then(data => {
           alert(`Case "${caseName}" deleted successfully!`);
-          // Reset form and editing state
-          setEditingCaseId(null); // This will trigger the useEffect to reset the form
+          // Reset form and editing state (duplicatingId should already be null if we are deleting)
+          setEditingCaseId(null);
+          // The useEffect for editingCaseId will reset the form.
           // Refetch case list
           setIsLoadingCases(true);
           fetch(getApiUrl('/api/cases'))
@@ -586,8 +630,14 @@ function CreateCaseForm() {
           <select
               id="case-edit-select"
               value={editingCaseId ?? ''}
-              onChange={(e) => setEditingCaseId(e.target.value ? Number(e.target.value) : null)}
-              disabled={isLoadingCases || isLoadingTemplates || isSaving}
+              onChange={(e) => {
+                  const newEditingId = e.target.value ? Number(e.target.value) : null;
+                  setEditingCaseId(newEditingId);
+                  if (newEditingId !== null) {
+                      setDuplicatingCaseId(null); // Clear duplication selection
+                  }
+              }}
+              disabled={isLoadingCases || isLoadingTemplates || isSaving || duplicatingCaseId !== null}
               className="cs-input"
               style={{ minWidth: '250px', marginRight: '10px' }}
           >
@@ -598,26 +648,65 @@ function CreateCaseForm() {
                   </option>
               ))}
           </select>
-          {editingCaseId !== null && (
+
+          {/* Duplicate Case Selection */}
+          <label htmlFor="case-duplicate-select" style={{ marginLeft: '20px', marginRight: '10px', fontWeight: 'bold' }}>Duplicate Case:</label>
+          <select
+              id="case-duplicate-select"
+              value={duplicatingCaseId ?? ''}
+              onChange={(e) => {
+                  const newDuplicatingId = e.target.value ? Number(e.target.value) : null;
+                  setDuplicatingCaseId(newDuplicatingId);
+                  if (newDuplicatingId !== null) {
+                      setEditingCaseId(null); // Clear editing selection
+                  }
+              }}
+              disabled={isLoadingCases || isLoadingTemplates || isSaving || editingCaseId !== null}
+              className="cs-input"
+              style={{ minWidth: '250px', marginRight: '10px' }}
+          >
+              <option value="">-- Select Case to Duplicate --</option>
+              {availableCases.map(caseInfo => (
+                  <option key={caseInfo.id} value={caseInfo.id}>
+                      {caseInfo.name} (ID: {caseInfo.id})
+                  </option>
+              ))}
+          </select>
+
+          {(editingCaseId !== null || duplicatingCaseId !== null) && (
               <>
-                  <StyledButton onClick={() => setEditingCaseId(null)} disabled={isSaving} style={{ marginLeft: '10px' }}>
+                  <StyledButton onClick={() => {
+                      setEditingCaseId(null);
+                      setDuplicatingCaseId(null);
+                  }} disabled={isSaving} style={{ marginLeft: '10px' }}>
                       Clear Selection (Create New)
                   </StyledButton>
-                  {/* Add Delete Button */}
-                  <StyledButton
-                      onClick={handleDeleteCase}
-                      disabled={isSaving}
-                      variant="danger" // Use danger variant for delete
-                      style={{ marginLeft: '10px' }}
-                  >
-                      Delete Selected Case
-                  </StyledButton>
+                  {/* Add Delete Button - only if editing */}
+                  {editingCaseId !== null && (
+                    <StyledButton
+                        onClick={handleDeleteCase}
+                        disabled={isSaving}
+                        variant="danger"
+                        style={{ marginLeft: '10px' }}
+                    >
+                        Delete Selected Case
+                    </StyledButton>
+                  )}
               </>
           )}
-          {isLoadingCases && <span style={{ marginLeft: '10px' }}>Loading cases...</span>}
+          {(isLoadingCases || isLoadingDuplicationSource) && <span style={{ marginLeft: '10px' }}>
+            {isLoadingCases && !isLoadingDuplicationSource && "Loading cases..."}
+            {isLoadingDuplicationSource && "Loading case to duplicate..."}
+          </span>}
       </div>
 
-      <h2>{editingCaseId ? `Edit Case (ID: ${editingCaseId})` : 'Create New Case'}</h2>
+      <h2>
+        {editingCaseId
+            ? `Edit Case (ID: ${editingCaseId})`
+            : duplicatingCaseId
+            ? `Duplicate Case (Source ID: ${duplicatingCaseId})`
+            : 'Create New Case'}
+      </h2>
       <hr className="cs-hr" style={{ margin: '15px 0' }} />
 
       {/* Display Errors */}
@@ -872,8 +961,18 @@ function CreateCaseForm() {
             Normalize % to 100
         </StyledButton>
 
-      <StyledButton onClick={handleSaveCase} style={{ marginTop: '20px' }} disabled={isLoadingTemplates || isLoadingCases || isSaving}>
-        {isSaving ? 'Saving...' : (editingCaseId ? 'Update Case' : 'Save New Case')}
+      <StyledButton
+        onClick={handleSaveCase}
+        style={{ marginTop: '20px' }}
+        disabled={isLoadingTemplates || isLoadingCases || isSaving || isLoadingDuplicationSource}
+      >
+        {isSaving
+            ? 'Saving...'
+            : editingCaseId // and duplicatingCaseId is null (implied by mutual exclusivity)
+            ? 'Update Case'
+            : duplicatingCaseId // and editingCaseId is null
+            ? 'Save as New Duplicated Case'
+            : 'Save New Case'}
       </StyledButton>
     </div>
   );
