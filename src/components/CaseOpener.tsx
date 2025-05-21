@@ -14,7 +14,7 @@ interface CaseItem {
   display_color: string; // Added display color
   percentage_chance: number; // Added percentage chance
   image_url?: string | null;
-  rules?: string | null;
+  rules_text?: string | null; // Changed from rules to rules_text
   sound_url?: string | null;
   // Add item_template_id if needed for any logic here, though maybe not
   item_template_id?: number; // Optional, might not be needed directly in opener
@@ -77,18 +77,25 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
           })
           .then((data: CaseInfo[]) => {
               setAvailableCases(data);
-              // If no case is selected in App yet, and cases are available, select the first one
-              if (!selectedCaseIdFromApp && data.length > 0 && data[0]) {
-                  onCaseSelected(data[0].id.toString()); // Report selection to App
-              } else if (data.length === 0) {
-                  // No cases in DB, load a default fallback case
+              const currentSelectedIdIsValid = selectedCaseIdFromApp && data.some(caseInfo => caseInfo.id.toString() === selectedCaseIdFromApp);
+
+              if (currentSelectedIdIsValid) {
+                  // The ID from App is valid and exists in the fetched list.
+                  // The useEffect watching selectedCaseIdFromApp will load its details.
+              } else if (data.length > 0 && data[0]) {
+                  // Either no case was selected in App, or the selected one is not in the fetched list.
+                  // Select the first available case from the current DB.
+                  console.log(`Previously selected case ID '${selectedCaseIdFromApp}' not found or no case selected. Selecting first available case: ${data[0].id}`);
+                  onCaseSelected(data[0].id.toString());
+              } else {
+                  // No cases available in the current DB.
+                  onCaseSelected(''); // Clear any invalid selection in App.
                   console.log("No cases found in DB, loading default fallback case.");
-                  // Define a default fallback case with new structure
                   const defaultItems: CaseItem[] = [
-                      { name: "Default Item 1", display_color: "#cccccc", percentage_chance: 50, image_url: null, rules: null, sound_url: null },
-                      { name: "Default Item 2", display_color: "#aaaaaa", percentage_chance: 30, image_url: null, rules: null, sound_url: null },
-                      { name: "Default Item 3", display_color: "#888888", percentage_chance: 15, image_url: null, rules: null, sound_url: null },
-                      { name: "Default Item 4", display_color: "#666666", percentage_chance: 5, image_url: null, rules: null, sound_url: null },
+                      { name: "Default Item 1", display_color: "#cccccc", percentage_chance: 50, image_url: null, rules_text: null, sound_url: null },
+                      { name: "Default Item 2", display_color: "#aaaaaa", percentage_chance: 30, image_url: null, rules_text: null, sound_url: null },
+                      { name: "Default Item 3", display_color: "#888888", percentage_chance: 15, image_url: null, rules_text: null, sound_url: null },
+                      { name: "Default Item 4", display_color: "#666666", percentage_chance: 5, image_url: null, rules_text: null, sound_url: null },
                   ];
                   setCurrentCaseData({
                       id: 0,
@@ -96,9 +103,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
                       description: "A basic case loaded because the database is empty.",
                       items: defaultItems
                   });
-                  // Initialize reel for fallback case
-                  setReelItems(defaultItems.slice(0, 10)); // Use default items for reel
-                  // setSelectedCaseId(''); // No longer needed
+                  setReelItems(defaultItems.slice(0, 10));
               }
               setError(null);
           })
@@ -130,7 +135,7 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
               }
               return response.json();
           })
-          .then((data: CaseData) => {
+          .then((data: CaseData) => { // CaseData already uses CaseItem which will be updated
               if (!data || !Array.isArray(data.items)) {
                    throw new Error("Invalid case data received from server.");
               }

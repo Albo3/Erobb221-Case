@@ -8,7 +8,7 @@ interface CaseItem {
   display_color: string;
   percentage_chance: number;
   image_url?: string | null;
-  rules?: string | null;
+  rules_text?: string | null; // Changed from rules to rules_text
   sound_url?: string | null;
   item_template_id?: number;
 }
@@ -48,10 +48,10 @@ const UnboxedItemPopup: React.FC<UnboxedItemPopupProps> = ({ item, isOpen, onClo
           />
         )}
         {/* Optionally display rules if they exist */}
-        {item.rules && (
+        {item.rules_text && (
           <div className="popup-item-rules">
             <h4>Rules:</h4>
-            <p>{item.rules}</p>
+            <p>{item.rules_text}</p>
           </div>
         )}
       </div>
