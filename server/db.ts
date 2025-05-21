@@ -35,8 +35,10 @@ if (currentVersion < DB_VERSION) {
     console.log(`Applying DB migration version ${DB_VERSION}...`);
 
     // --- Migration Logic for v4 ---
-    // Drop tables from previous versions in reverse order of dependency
-    console.log('Dropping old case_items table (if exists)...');
+    if (currentVersion < 4) {
+        console.log('Applying DB migration version 4...');
+        // Drop tables from previous versions in reverse order of dependency
+        console.log('Dropping old case_items table (if exists)...');
     db.exec('DROP TABLE IF EXISTS case_items;');
     console.log('Dropping old assets table (if exists)...');
     db.exec('DROP TABLE IF EXISTS assets;'); // Remove the assets table from v3
@@ -58,9 +60,9 @@ if (currentVersion < DB_VERSION) {
     }
 
     // Create the new item_templates table
-    console.log('Creating item_templates table...');
+    console.log('Creating item_templates table (if not exists)...');
     db.exec(`
-      CREATE TABLE item_templates (
+      CREATE TABLE IF NOT EXISTS item_templates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         base_name TEXT NOT NULL UNIQUE, -- Base name for the template (e.g., "AK-47 Redline")
         image_path TEXT,          -- Relative path to image file in uploads/images/
@@ -71,18 +73,20 @@ if (currentVersion < DB_VERSION) {
     `);
 
     // Create the new case_items linking table (v4 schema)
-    console.log('Creating new case_items linking table (v4)...');
+    console.log('Creating new case_items linking table (v4, if not exists)...');
     db.exec(`
-      CREATE TABLE case_items (
+      CREATE TABLE IF NOT EXISTS case_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         case_id INTEGER NOT NULL,
         item_template_id INTEGER NOT NULL,
         override_name TEXT, -- Optional name override for this specific instance (e.g., "StatTrak...")
-        color TEXT NOT NULL, -- Rarity color specific to this instance in this case
+        color TEXT NOT NULL, -- Rarity color specific to this instance in this case (pre-v6 schema)
         FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE,
         FOREIGN KEY (item_template_id) REFERENCES item_templates (id) ON DELETE CASCADE -- Cascade delete if template is removed
       );
     `);
+        console.log('DB migration version 4 applied.');
+    }
     // --- End Migration Logic for v4 ---
 
     // console.log(`DB migration version ${DB_VERSION} applied.`); // Message moved below specific version blocks
@@ -144,6 +148,58 @@ if (currentVersion < DB_VERSION) {
         }
     }
     // --- End Migration Logic for v6 ---
+
+    // --- Migration Logic for v7 ---
+    if (currentVersion < 7) {
+        console.log('Applying DB migration version 7: Add override_rules_text to case_items table...');
+        try {
+            db.exec('ALTER TABLE case_items ADD COLUMN override_rules_text TEXT');
+            console.log('Successfully added override_rules_text column to case_items table.');
+            console.log('DB migration version 7 applied.');
+        } catch (alterError: any) {
+            if (alterError.message && alterError.message.includes('no such table: case_items')) {
+                console.warn('Migration v7: case_items table not found. This indicates an inconsistent DB state (expected at v6). Attempting to create it with v6 schema and then apply v7 alteration.');
+                try {
+                    db.exec(`
+                        CREATE TABLE case_items (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            case_id INTEGER NOT NULL,
+                            item_template_id INTEGER NOT NULL,
+                            override_name TEXT,
+                            percentage_chance REAL NOT NULL DEFAULT 0,
+                            display_color TEXT NOT NULL DEFAULT '#808080',
+                            FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE,
+                            FOREIGN KEY (item_template_id) REFERENCES item_templates (id) ON DELETE CASCADE
+                        );
+                    `);
+                    console.log('Migration v7: Successfully created missing case_items table with v6 schema.');
+                    db.exec('ALTER TABLE case_items ADD COLUMN override_rules_text TEXT');
+                    console.log('Migration v7: Successfully added override_rules_text column after recreating case_items.');
+                    console.log('DB migration version 7 applied (after recovery).');
+                } catch (recoveryError) {
+                    console.error('Migration v7: Failed to recover by recreating case_items and altering. Manual intervention needed.', recoveryError);
+                    throw recoveryError;
+                }
+            } else {
+                console.error('Failed during DB migration version 7 (alteration):', alterError);
+                try {
+                    const checkStmt = db.prepare("PRAGMA table_info(case_items)");
+                    const columns = checkStmt.all() as Array<{ name: string }>;
+                    if (columns.some(c => c.name === 'override_rules_text')) {
+                        console.warn('Migration v7 (override_rules_text) seems already applied. Skipping.');
+                        console.log('DB migration version 7 applied (skipped as column exists).');
+                    } else {
+                        console.error('Irrecoverable error during migration v7. Manual intervention might be needed.');
+                        throw alterError;
+                    }
+                } catch (pragmaError) {
+                     console.error('Migration v7: Error during PRAGMA check after initial alter error. This likely means case_items still does not exist or another issue occurred.', pragmaError);
+                     throw alterError; // Throw original alterError as it's more relevant
+                }
+            }
+        }
+    }
+    // --- End Migration Logic for v7 ---
 
     setDbVersion(DB_VERSION); // Update version only if all migrations succeed
 } else {

@@ -25,6 +25,7 @@ interface FullCaseData {
         override_name: string | null;
         percentage_chance: number; // Updated field
         display_color: string;     // Updated field
+        rules_text: string | null; // Expect rules_text from backend
     }>;
     image_path: string | null;
 }
@@ -43,6 +44,7 @@ interface CaseItemState {
   percentage_chance: number; // New field
   display_color: string;     // New field
   isPercentageLocked: boolean; // Added for locking percentage
+  override_rules_text: string; // Added for rules override
 }
 
 /** Counter-Strike rarity presets for color and base percentage chance */
@@ -83,7 +85,7 @@ function CreateCaseForm() {
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemState[]>([
-    { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }, // Initialize lock state
+    { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '' }, // Initialize lock state and rules override
   ]);
 
   // State for available data
@@ -157,7 +159,7 @@ function CreateCaseForm() {
           // Reset form if we stop editing or duplicating (or are creating new)
           setCaseName('');
           setCaseDescription('');
-          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]);
+          setItems([{ id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '' }]);
           setCaseImageFile(null);
           setSelectedExistingCaseImagePath('');
           setClearExistingCaseImage(false);
@@ -207,6 +209,7 @@ function CreateCaseForm() {
                   override_name: item.override_name ?? '',
                   percentage_chance: item.percentage_chance,
                   display_color: item.display_color,
+                  override_rules_text: item.rules_text ?? '', // Populate from fetched rules_text
                   isPercentageLocked: false, // Default to unlocked
               })));
 
@@ -317,6 +320,9 @@ function CreateCaseForm() {
             break;
         case 'isPercentageLocked': // Handle checkbox change
             itemToUpdate.isPercentageLocked = typeof value === 'boolean' ? value : false;
+            break;
+        case 'override_rules_text':
+            itemToUpdate.override_rules_text = typeof value === 'string' ? value : '';
             break;
         default:
             console.warn(`Unhandled field change: ${field}`);
@@ -438,7 +444,7 @@ function CreateCaseForm() {
 
   // Function to add a new empty item row
   const addItem = () => {
-    setItems([...items, { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false }]); // Add lock state
+    setItems([...items, { id: Date.now(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '' }]); // Add lock state and rules
   };
 
   // Function to remove an item row
@@ -488,11 +494,12 @@ function CreateCaseForm() {
     }
 
     // Append items as JSON string using the new structure
-    const itemsPayload = itemsWithTemplates.map(({ item_template_id, override_name, percentage_chance, display_color }) => ({
+    const itemsPayload = itemsWithTemplates.map(({ item_template_id, override_name, percentage_chance, display_color, override_rules_text }) => ({
         item_template_id: item_template_id, // Already validated non-null
         override_name: override_name.trim() || null,
         percentage_chance: percentage_chance || 0, // Ensure it's a number, default 0
         display_color: display_color || DEFAULT_ITEM_COLOR, // Ensure it's a string, default color
+        override_rules_text: override_rules_text.trim() || null, // Add override_rules_text
     }));
     formData.append('items', JSON.stringify(itemsPayload));
 
@@ -805,7 +812,7 @@ function CreateCaseForm() {
           {/* Item Row - Final Attempt at Compact Single Line Layout */}
           <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', marginBottom: '15px', alignItems: 'flex-end', borderBottom: '1px dashed var(--border-color)', paddingBottom: '15px' }}> {/* Align items to bottom */}
             {/* Template Selector */}
-            <div style={{ flex: '3 1 0%' }}> {/* Allow more growth, shrink, zero basis */}
+            <div style={{ flex: '2 1 0%' }}> {/* Adjusted flex basis */}
                  <label htmlFor={`template_select_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Item Template:</label>
                  <select
                     id={`template_select_${index}`}
@@ -834,6 +841,19 @@ function CreateCaseForm() {
                     disabled={isSaving}
                  />
              </div>
+            {/* Rules Override Textarea */}
+            <div style={{ flex: '2 1 0%' }}> {/* Adjusted flex basis */}
+                <label htmlFor={`rules_override_${index}`} style={{ fontSize: '0.8em', display: 'block', marginBottom: '2px' }}>Rules Override (Optional):</label>
+                <textarea
+                    id={`rules_override_${index}`}
+                    value={item.override_rules_text}
+                    onChange={(e) => handleItemChange(index, 'override_rules_text', e.target.value)}
+                    placeholder="Custom rules for this item in this case..."
+                    className="cs-input"
+                    style={{ width: '100%', minHeight: '30px', boxSizing: 'border-box', resize: 'vertical' }} // Ensure consistent height with inputs
+                    disabled={isSaving}
+                />
+            </div>
             {/* Preset Dropdown + Percentage Input & Lock Checkbox Group */}
             <div style={{ flex: '1 1 180px', display: 'flex', alignItems: 'flex-end', gap: '5px' }}>
                 {/* Preset Dropdown */}

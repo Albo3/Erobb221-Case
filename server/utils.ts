@@ -17,6 +17,7 @@ export interface CaseItemLinkData {
     override_name?: string | null;
     percentage_chance: number; // Changed from color
     display_color: string;     // Added display color
+    override_rules_text?: string | null; // Added for rules override
 }
 
 // Helper function to save uploaded file, now with image processing
