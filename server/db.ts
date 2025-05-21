@@ -201,6 +201,34 @@ if (currentVersion < DB_VERSION) {
     }
     // --- End Migration Logic for v7 ---
 
+    // --- Migration Logic for v8 ---
+    if (currentVersion < 8) {
+        console.log('Applying DB migration version 8: Add display_order to case_items table...');
+        try {
+            db.exec('ALTER TABLE case_items ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0');
+            console.log('Successfully added display_order column to case_items table.');
+            console.log('DB migration version 8 applied.');
+        } catch (migrationError: any) {
+            console.error('Failed during DB migration version 8:', migrationError);
+            // Check if column already exists from a partial run
+            try {
+                const checkStmt = db.prepare("PRAGMA table_info(case_items)");
+                const columns = checkStmt.all() as Array<{ name: string }>;
+                if (columns.some(c => c.name === 'display_order')) {
+                    console.warn('Migration v8 (display_order) seems already applied. Skipping.');
+                    console.log('DB migration version 8 applied (skipped as column exists).');
+                } else {
+                    console.error('Irrecoverable error during migration v8. Manual intervention might be needed.');
+                    throw migrationError;
+                }
+            } catch (pragmaError) {
+                console.error('Migration v8: Error during PRAGMA check after initial alter error.', pragmaError);
+                throw migrationError; // Throw original migrationError
+            }
+        }
+    }
+    // --- End Migration Logic for v8 ---
+
     setDbVersion(DB_VERSION); // Update version only if all migrations succeed
 } else {
      console.log(`Database schema is up to date (v${DB_VERSION}).`);

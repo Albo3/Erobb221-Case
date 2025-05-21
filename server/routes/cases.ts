@@ -57,6 +57,7 @@ casesApp.get('/:id', (c) => {
             FROM case_items ci
             JOIN item_templates it ON ci.item_template_id = it.id
             WHERE ci.case_id = ?
+            ORDER BY ci.display_order ASC -- Order by display_order
         `);
         // Type needs to match the SELECT statement columns/aliases
         const itemsRaw = itemsStmt.all(id) as Array<{
@@ -135,11 +136,11 @@ casesApp.post('/', async (c) => {
 
         // --- Database Insertion (Transaction) ---
         const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
-        // Update insert statement for case_items with new columns, including override_rules_text
+        // Update insert statement for case_items with new columns, including override_rules_text and display_order
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
-            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
 
         db.exec('BEGIN TRANSACTION');
@@ -168,14 +169,15 @@ casesApp.post('/', async (c) => {
             caseId = caseResult.id;
 
             // Insert item links using new structure
-            for (const item of items) {
+            for (const [index, item] of items.entries()) { // Use .entries() to get index for display_order
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
                     item.override_name?.trim() ?? null,
                     item.percentage_chance, // Use new percentage
                     item.display_color,       // Use new display color
-                    item.override_rules_text?.trim() ?? null // Add override_rules_text
+                    item.override_rules_text?.trim() ?? null, // Add override_rules_text
+                    index // Use array index as display_order
                 );
             }
 
@@ -264,11 +266,11 @@ casesApp.put('/:id', async (c) => {
         // --- Database Update (Transaction) ---
         const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ?, image_path = ? WHERE id = ?');
         const deleteOldItemsStmt = db.prepare('DELETE FROM case_items WHERE case_id = ?');
-        // Update insert statement for case_items with new columns, including override_rules_text
+        // Update insert statement for case_items with new columns, including override_rules_text and display_order
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
-            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
 
         db.exec('BEGIN TRANSACTION');
@@ -298,14 +300,15 @@ casesApp.put('/:id', async (c) => {
             deleteOldItemsStmt.run(caseId);
 
             // 3. Insert new item links using new structure
-            for (const item of items) {
+            for (const [index, item] of items.entries()) { // Use .entries() to get index for display_order
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
                     item.override_name?.trim() ?? null,
                     item.percentage_chance, // Use new percentage
                     item.display_color,       // Use new display color
-                    item.override_rules_text?.trim() ?? null // Add override_rules_text
+                    item.override_rules_text?.trim() ?? null, // Add override_rules_text
+                    index // Use array index as display_order
                 );
             }
 

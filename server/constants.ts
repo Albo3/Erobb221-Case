@@ -11,4 +11,4 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'ima
 export const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/wave', 'audio/x-wav', 'audio/aac', 'audio/flac'];
 // !!! IMPORTANT: In a real application, store this hash securely in an environment variable, NOT hardcoded!
 export const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$vHO4F6ZpPRqk4/Jp4vX.qOw.qD89QnEvG.KBfID/i/5wQKtS1vYHu'; // Correct hash for 
-export const DB_VERSION = 7; // Increment version for override_rules_text
+export const DB_VERSION = 8; // Increment version for case_items.display_order
