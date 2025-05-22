@@ -180,7 +180,7 @@ header .cs-fieldset .radio-wrapper:last-child {
 
   .case-content-panel { /* Renamed from .rules-panel */
     /* Specific styles for left panel */
-    width: 400px; /* Increased width further */
+    width: 450px; /* Increased width further for readability */
     order: 1; /* Place it first */
     /* Remove positioning styles (left, border-right, padding-right) */
     /* Keep borders */
@@ -793,12 +793,12 @@ header .cs-fieldset .radio-wrapper:last-child {
       visibility: hidden;
       /* width: -moz-max-content; */
       /* width: max-content; */ /* Let content wrap */
-      max-width: 250px; /* Reduced max-width */
+      max-width: 280px; /* Increased max-width for readability */
       white-space: pre-wrap; /* Allow wrapping */
       background-color: var(--secondary-accent);
       color: white !important; /* Ensure text color is white, override others */
       text-align: left; /* Align left */
-      font-size: 1.3rem;
+      font-size: 1.4rem; /* Increased font size for readability */
       line-height: 1.2; /* Adjust line height */
       position: absolute;
       z-index: 10; /* Ensure tooltip is above other elements */
