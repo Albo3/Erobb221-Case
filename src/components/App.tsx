@@ -19,7 +19,7 @@ interface CaseItem {
   display_color: string; // Use display_color
   percentage_chance: number; // Add percentage_chance (though not directly used in history display)
   image_url?: string | null;
-  rules?: string | null;
+  rules_text?: string | null; // Changed from rules to rules_text
   sound_url?: string | null;
   item_template_id?: number; // Keep optional
 }
@@ -335,9 +335,9 @@ function App() {
                         // If image exists, wrap image with tooltip
                         <div className="cs-tooltip" style={{ display: 'inline-block', verticalAlign: 'middle' }}> {/* Add display style */}
                           <img src={getApiUrl(item.image_url)} alt="" loading="lazy" />
-                          {item.rules && (
+                          {item.rules_text && (
                             <span className="text">
-                              {item.rules}
+                              {item.rules_text}
                             </span>
                           )}
                         </div>
@@ -345,9 +345,9 @@ function App() {
                         // If no image, wrap name with tooltip (placeholder or actual name)
                         <div className="cs-tooltip" style={{ display: 'inline-block', verticalAlign: 'middle' }}> {/* Add display style */}
                           <span style={{ color: item.display_color }}>{item.name}</span>
-                           {item.rules && (
+                           {item.rules_text && (
                              <span className="text">
-                               {item.rules}
+                               {item.rules_text}
                              </span>
                            )}
                          </div>
