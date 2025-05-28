@@ -18,6 +18,7 @@ export interface CaseItemLinkData {
     percentage_chance: number; // Changed from color
     display_color: string;     // Added display color
     override_rules_text?: string | null; // Added for rules override
+    showPercentageInOpener?: boolean; // <<< NEW FIELD (optional for frontend, backend will default)
 }
 
 // Helper function to save uploaded file, now with image processing
@@ -129,31 +130,22 @@ export const validateCaseItems = (items: any[], req: HonoRequest): string | null
         return 'Items must be a non-empty array.';
     }
 
-    // let totalPercentage = 0; // Removed sum validation as per user request
-
     for (const item of items) {
         if (item.item_template_id === undefined || item.item_template_id === null || typeof item.item_template_id !== 'number') {
             return `Invalid or missing item_template_id for item. Must be a number.`;
         }
-        // Validate percentage_chance
         if (item.percentage_chance === undefined || item.percentage_chance === null || typeof item.percentage_chance !== 'number' || item.percentage_chance < 0) {
             return `Each item must have a valid, non-negative percentage_chance. Failed item template ID: ${item.item_template_id}`;
         }
-        // Validate display_color
         if (!item.display_color || typeof item.display_color !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(item.display_color)) {
              return `Each item must have a valid hex color code (e.g., #RRGGBB) for display_color. Failed item template ID: ${item.item_template_id}`;
         }
         if (item.override_name && typeof item.override_name !== 'string') {
             return `Invalid override_name format for item template ID: ${item.item_template_id}. Must be a string or null.`;
         }
-        // totalPercentage += item.percentage_chance; // Removed sum validation
+        // Validation for showPercentageInOpener is not strictly needed here as backend defaults it if missing.
+        // If present, it should be boolean, but the backend handles conversion from 0/1.
     }
-
-    // Removed sum validation block
-    // const tolerance = 0.01; // Allow for floating point inaccuracies
-    // if (Math.abs(totalPercentage - 100) > tolerance) {
-    //     return `The sum of percentage chances for all items must be exactly 100%. Current sum: ${totalPercentage.toFixed(2)}%`;
-    // }
 
     return null; // Validation passed
 };
@@ -173,14 +165,11 @@ export async function validateUploadedFile(file: File | null, type: 'image' | 'a
         if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
             return `Invalid audio file type. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}`;
         }
-        // Removed duration check, keep metadata parsing for potential future use or logging
         try {
             console.log(`Attempting to parse metadata for audio file: ${file.name}, type: ${file.type}`);
             const metadata = await parseBlob(file);
             console.log(`Successfully parsed metadata. Duration: ${metadata.format.duration ?? 'N/A'}`);
-            // Duration check removed
         } catch (metaError: any) {
-            // Log error but don't reject the upload based on metadata parsing failure alone
             console.warn(`Could not read metadata from audio file ${file.name}. Allowing upload anyway. Error: ${metaError.message || 'Unknown metadata error'}`);
         }
     }

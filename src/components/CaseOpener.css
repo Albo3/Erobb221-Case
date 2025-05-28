@@ -303,3 +303,28 @@
         font-size: 0.8em;
     }
 }
+
+.case-opener-item-percentage {
+    display: block;
+    font-size: 0.75em; /* Smaller than the name */
+    color: #ccc; /* Lighter color for percentage */
+    margin-top: 3px; /* Space from the name or image */
+    text-align: center;
+    position: absolute; /* Position relative to .case-opener-item */
+    bottom: 3px; /* At the bottom of the item */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background for readability */
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap; /* Prevent wrapping */
+    z-index: 1; /* Ensure it's above the image if overlapping slightly */
+}
+
+/* Adjustments if item has no image, percentage might need different positioning or styling */
+.case-opener-item.no-image .case-opener-item-percentage {
+    /* Example: if name is centered, percentage might be better static */
+    /* position: static; */
+    /* transform: none; */
+    /* margin-top: 5px; */
+}

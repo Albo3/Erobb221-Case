@@ -21,6 +21,7 @@ interface CaseItem {
   image_url?: string | null;
   rules_text?: string | null; // Changed from rules to rules_text
   sound_url?: string | null;
+  showPercentageInOpener?: boolean; // <<< ADDED
   item_template_id?: number; // Keep optional
 }
 
@@ -29,7 +30,7 @@ interface CaseData {
   id: number;
   name: string;
   description: string | null;
-  items: CaseItem[];
+  items: CaseItem[]; // Uses the updated CaseItem interface
 }
 
 // Interface for the list of cases fetched from /api/cases
@@ -356,7 +357,10 @@ function App() {
                       {item.image_url && (
                          <span style={{ color: item.display_color }}>{item.name}</span>
                       )}
-                      <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                      {/* Conditionally render percentage */}
+                      {item.showPercentageInOpener === true && typeof item.percentage_chance === 'number' && (
+                        <span className="item-percentage">{item.percentage_chance.toFixed(2)}%</span>
+                      )}
                     </div>
                   </li>
                 ))}

@@ -229,6 +229,34 @@ if (currentVersion < DB_VERSION) {
     }
     // --- End Migration Logic for v8 ---
 
+    // --- Migration Logic for v9 ---
+    if (currentVersion < 9) {
+        console.log('Applying DB migration version 9: Add show_percentage_in_opener to case_items table...');
+        try {
+            db.exec('ALTER TABLE case_items ADD COLUMN show_percentage_in_opener INTEGER NOT NULL DEFAULT 1'); // Default to true (1)
+            console.log('Successfully added show_percentage_in_opener column to case_items table.');
+            console.log('DB migration version 9 applied.');
+        } catch (migrationError: any) {
+            console.error('Failed during DB migration version 9:', migrationError);
+            // Check if column already exists from a partial run
+            try {
+                const checkStmt = db.prepare("PRAGMA table_info(case_items)");
+                const columns = checkStmt.all() as Array<{ name: string }>;
+                if (columns.some(c => c.name === 'show_percentage_in_opener')) {
+                    console.warn('Migration v9 (show_percentage_in_opener) seems already applied. Skipping.');
+                    console.log('DB migration version 9 applied (skipped as column exists).');
+                } else {
+                    console.error('Irrecoverable error during migration v9. Manual intervention might be needed.');
+                    throw migrationError;
+                }
+            } catch (pragmaError) {
+                console.error('Migration v9: Error during PRAGMA check after initial alter error.', pragmaError);
+                throw migrationError; // Throw original migrationError
+            }
+        }
+    }
+    // --- End Migration Logic for v9 ---
+
     setDbVersion(DB_VERSION); // Update version only if all migrations succeed
 } else {
      console.log(`Database schema is up to date (v${DB_VERSION}).`);
