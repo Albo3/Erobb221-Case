@@ -85,6 +85,13 @@
   letter-spacing: 2px; /* Added character spacing */
 }
 
+.popup-item-percentage {
+  font-size: 0.9em;
+  color: var(--secondary-text); /* Or a specific color like #ccc */
+  margin-top: -10px; /* Pull it closer to the name */
+  margin-bottom: 10px;
+}
+
 .popup-item-image {
   display: block;
   max-width: 80%; /* Limit image width */

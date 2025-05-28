@@ -2,15 +2,16 @@ import React from 'react';
 import { getApiUrl } from '../config';
 import './UnboxedItemPopup.css'; // Import the CSS for styling
 
-// Define the CaseItem interface (can be imported from a shared types file later if needed)
+// Define the CaseItem interface
 interface CaseItem {
   name: string;
   display_color: string;
   percentage_chance: number;
   image_url?: string | null;
-  rules_text?: string | null; // Changed from rules to rules_text
+  rules_text?: string | null;
   sound_url?: string | null;
   item_template_id?: number;
+  showPercentageInOpener?: boolean; // <<< NEW FIELD
 }
 
 // Define the props for the popup component
@@ -39,6 +40,12 @@ const UnboxedItemPopup: React.FC<UnboxedItemPopupProps> = ({ item, isOpen, onClo
         <p className="popup-item-name" style={{ color: item.display_color || 'white' }}>
           {item.name}
         </p>
+        {/* Conditional Percentage Display - explicitly check for true */}
+        {item.showPercentageInOpener === true && typeof item.percentage_chance === 'number' && (
+          <p className="popup-item-percentage">
+            Chance: {item.percentage_chance.toFixed(2)}%
+          </p>
+        )}
         {item.image_url && (
           <img
             src={getApiUrl(item.image_url)}

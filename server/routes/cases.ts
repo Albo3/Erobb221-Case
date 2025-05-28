@@ -48,41 +48,42 @@ casesApp.get('/:id', (c) => {
             SELECT
                 ci.item_template_id,
                 ci.override_name,
-                ci.percentage_chance, -- Fetch new percentage column
-                ci.display_color,     -- Fetch new display color column
+                ci.percentage_chance,
+                ci.display_color,
+                ci.show_percentage_in_opener, -- <<< NEW FIELD
                 it.base_name,
                 it.image_path as image_url,
                 it.sound_path as sound_url,
-                COALESCE(ci.override_rules_text, it.rules_text) as rules_text -- Use COALESCE for rules
+                COALESCE(ci.override_rules_text, it.rules_text) as rules_text
             FROM case_items ci
             JOIN item_templates it ON ci.item_template_id = it.id
             WHERE ci.case_id = ?
-            ORDER BY ci.display_order ASC -- Order by display_order
+            ORDER BY ci.display_order ASC
         `);
         // Type needs to match the SELECT statement columns/aliases
         const itemsRaw = itemsStmt.all(id) as Array<{
             item_template_id: number;
             override_name: string | null;
-            percentage_chance: number; // Add percentage
-            display_color: string;     // Add display color
+            percentage_chance: number;
+            display_color: string;
+            show_percentage_in_opener: number; // SQLite stores boolean as 0 or 1
             base_name: string;
             image_url: string | null;
             sound_url: string | null;
-            rules_text: string | null; // Changed from rules to rules_text to match COALESCE alias
+            rules_text: string | null;
         }>;
 
         // Process raw items to create the final structure for the frontend
         const items = itemsRaw.map(item => ({
             item_template_id: item.item_template_id,
             name: item.override_name ?? item.base_name,
-            percentage_chance: item.percentage_chance, // Include percentage
-            display_color: item.display_color,         // Include display color
+            percentage_chance: item.percentage_chance,
+            display_color: item.display_color,
+            showPercentageInOpener: item.show_percentage_in_opener === 1, // Convert to boolean
             image_url: item.image_url,
             sound_url: item.sound_url,
-            rules_text: item.rules_text, // Use rules_text
-            // Include override_name separately if needed by frontend edit logic
+            rules_text: item.rules_text,
             override_name: item.override_name
-            // override_rules_text will be implicitly handled by rules_text from COALESCE
         }));
 
 
@@ -117,9 +118,10 @@ casesApp.post('/', async (c) => {
             return c.json({ error: 'Items data (JSON string) is required.' }, 400);
         }
 
-        let items: CaseItemLinkData[];
+        let items: CaseItemLinkData[]; // CaseItemLinkData might need showPercentageInOpener
         try {
             items = JSON.parse(itemsJson);
+            // Update validateCaseItems if it needs to check showPercentageInOpener
             const validationError = validateCaseItems(items, c.req);
             if (validationError) {
                 return c.json({ error: validationError }, 400);
@@ -136,31 +138,28 @@ casesApp.post('/', async (c) => {
 
         // --- Database Insertion (Transaction) ---
         const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
-        // Update insert statement for case_items with new columns, including override_rules_text and display_order
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
-            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order, show_percentage_in_opener)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         db.exec('BEGIN TRANSACTION');
 
         try {
-            // Determine final image path
             let finalImagePath: string | null = null;
             if (imageFile) {
                 finalImagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
-                if (finalImagePath) savedFilePaths.push(join('.', finalImagePath)); // Track for rollback
+                if (finalImagePath) savedFilePaths.push(join('.', finalImagePath));
                 else throw new Error('Failed to save new case image file.');
             } else if (existingImagePath) {
-                finalImagePath = existingImagePath; // Use selected existing path
+                finalImagePath = existingImagePath;
             }
 
-            // Insert Case with image path
             const caseResult = insertCaseStmt.get(
                 name.trim(),
                 description?.trim() ?? null,
-                finalImagePath // Add image path here
+                finalImagePath
             ) as { id: number } | null;
 
             if (!caseResult || typeof caseResult.id !== 'number') {
@@ -168,16 +167,17 @@ casesApp.post('/', async (c) => {
             }
             caseId = caseResult.id;
 
-            // Insert item links using new structure
-            for (const [index, item] of items.entries()) { // Use .entries() to get index for display_order
+            for (const [index, item] of items.entries()) {
+                const showPercentageInOpenerValue = typeof item.showPercentageInOpener === 'boolean' ? (item.showPercentageInOpener ? 1 : 0) : 1; // Default to 1 (true)
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
                     item.override_name?.trim() ?? null,
-                    item.percentage_chance, // Use new percentage
-                    item.display_color,       // Use new display color
-                    item.override_rules_text?.trim() ?? null, // Add override_rules_text
-                    index // Use array index as display_order
+                    item.percentage_chance,
+                    item.display_color,
+                    item.override_rules_text?.trim() ?? null,
+                    index,
+                    showPercentageInOpenerValue // <<< NEW FIELD
                 );
             }
 
@@ -187,8 +187,7 @@ casesApp.post('/', async (c) => {
 
         } catch (dbError) {
             console.error('Case creation transaction failed, rolling back:', dbError);
-            db.exec('ROLLBACK'); // Rollback DB changes
-            // Attempt to delete saved image file on rollback
+            db.exec('ROLLBACK');
             console.log('Attempting to delete saved case image due to rollback:', savedFilePaths);
             for (const filePath of savedFilePaths) {
                 try { await unlink(filePath); console.log(`Deleted rolled back file: ${filePath}`); }
@@ -201,7 +200,6 @@ casesApp.post('/', async (c) => {
 
     } catch (error: any) {
         console.error('Error processing POST /api/cases:', error);
-        // Handle potential formData parsing errors specifically if needed
         return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
     }
 });
@@ -216,11 +214,10 @@ casesApp.put('/:id', async (c) => {
         return c.json({ error: 'Invalid case ID provided.' }, 400);
     }
 
-    const savedFilePaths: string[] = []; // Track NEW image saved for potential rollback
+    const savedFilePaths: string[] = [];
     let oldImagePath: string | null = null;
 
     try {
-        // Fetch existing case to get old image path for deletion logic
         const selectCaseStmt = db.prepare('SELECT image_path FROM cases WHERE id = ?');
         const existingCaseData = selectCaseStmt.get(caseId) as { image_path: string | null } | null;
 
@@ -229,16 +226,14 @@ casesApp.put('/:id', async (c) => {
         }
         oldImagePath = existingCaseData.image_path;
 
-        // Parse formData
         const formData = await c.req.formData();
         const name = formData.get('name') as string;
         const description = formData.get('description') as string | null;
-        const itemsJson = formData.get('items') as string; // Items array as JSON string
+        const itemsJson = formData.get('items') as string;
         const imageFile = formData.get('image_file') as File | null;
         const existingImagePath = formData.get('existing_image_path') as string | null;
         const clearImage = formData.get('clear_image') === 'true';
 
-        // --- Basic Validation ---
         if (!name || typeof name !== 'string' || name.trim() === '') {
             return c.json({ error: 'Case name is required.' }, 400);
         }
@@ -246,87 +241,79 @@ casesApp.put('/:id', async (c) => {
             return c.json({ error: 'Items data (JSON string) is required.' }, 400);
         }
 
-        let items: CaseItemLinkData[];
+        let items: CaseItemLinkData[]; // CaseItemLinkData might need showPercentageInOpener
          try {
             items = JSON.parse(itemsJson);
-            const validationError = validateCaseItems(items, c.req); // Use helper
+            // Update validateCaseItems if it needs to check showPercentageInOpener
+            const validationError = validateCaseItems(items, c.req);
             if (validationError) {
                 return c.json({ error: validationError }, 400);
             }
         } catch (parseError) {
             return c.json({ error: 'Invalid items JSON format.' }, 400);
         }
-        // --- End Basic Validation ---
 
-        // --- File Validation ---
         const imageValidationError = await validateUploadedFile(imageFile, 'image');
         if (imageValidationError) return c.json({ error: imageValidationError }, 400);
-        // --- End File Validation ---
 
-        // --- Database Update (Transaction) ---
         const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ?, image_path = ? WHERE id = ?');
         const deleteOldItemsStmt = db.prepare('DELETE FROM case_items WHERE case_id = ?');
-        // Update insert statement for case_items with new columns, including override_rules_text and display_order
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
-            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order, show_percentage_in_opener)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         db.exec('BEGIN TRANSACTION');
-        let finalImagePath = oldImagePath; // Start with the existing path
+        let finalImagePath = oldImagePath;
 
         try {
-            // Determine final image path based on priority: Clear > New File > Existing Path > Keep Old
             if (clearImage) {
                 finalImagePath = null;
             } else if (imageFile) {
                 const newImagePath = await saveUploadedFile(imageFile, IMAGES_DIR);
-                if (newImagePath) { savedFilePaths.push(join('.', newImagePath)); finalImagePath = newImagePath; } // Track new file
+                if (newImagePath) { savedFilePaths.push(join('.', newImagePath)); finalImagePath = newImagePath; }
                 else { throw new Error('Failed to save new case image file.'); }
             } else if (existingImagePath) {
-                 finalImagePath = existingImagePath; // Use selected existing path
-            } // else: finalImagePath remains oldImagePath (default)
+                 finalImagePath = existingImagePath;
+            }
 
-            // 1. Update case details (including image path)
             updateCaseStmt.run(
-                name.trim(), // Use name from formData
-                description?.trim() ?? null, // Use description from formData
-                finalImagePath, // Use determined final image path
+                name.trim(),
+                description?.trim() ?? null,
+                finalImagePath,
                 caseId
             );
 
-            // 2. Delete old item links for this case
             deleteOldItemsStmt.run(caseId);
 
-            // 3. Insert new item links using new structure
-            for (const [index, item] of items.entries()) { // Use .entries() to get index for display_order
+            for (const [index, item] of items.entries()) {
+                const showPercentageInOpenerValue = typeof item.showPercentageInOpener === 'boolean' ? (item.showPercentageInOpener ? 1 : 0) : 1; // Default to 1 (true)
                 insertItemLinkStmt.run(
                     caseId,
                     item.item_template_id,
                     item.override_name?.trim() ?? null,
-                    item.percentage_chance, // Use new percentage
-                    item.display_color,       // Use new display color
-                    item.override_rules_text?.trim() ?? null, // Add override_rules_text
-                    index // Use array index as display_order
+                    item.percentage_chance,
+                    item.display_color,
+                    item.override_rules_text?.trim() ?? null,
+                    index,
+                    showPercentageInOpenerValue // <<< NEW FIELD
                 );
             }
 
             db.exec('COMMIT');
 
-            // Delete old image file AFTER commit succeeds, if cleared or replaced by a NEW file upload
             if (oldImagePath && (clearImage || (imageFile && oldImagePath !== finalImagePath))) {
                  try { await unlink(join('.', oldImagePath)); console.log(`Deleted old/replaced case image: ${oldImagePath}`); }
                  catch(e) { console.error(`Error deleting old/replaced case image ${oldImagePath}:`, e); }
             }
 
             console.log(`Case '${name}' (ID: ${caseId}) updated successfully with image '${finalImagePath}' and ${items.length} item links.`);
-            return c.json({ message: 'Case updated successfully', caseId: caseId }); // Return 200 OK
+            return c.json({ message: 'Case updated successfully', caseId: caseId });
 
         } catch (dbError) {
             console.error(`Case update transaction failed for ID ${caseId}, rolling back:`, dbError);
             db.exec('ROLLBACK');
-            // Attempt to delete any NEW files saved during the failed transaction
             console.log('Attempting to delete newly saved case image due to rollback:', savedFilePaths);
             for (const filePath of savedFilePaths) {
                 try { await unlink(filePath); console.log(`Deleted rolled back file: ${filePath}`); }
@@ -335,11 +322,9 @@ casesApp.put('/:id', async (c) => {
             const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
             return c.json({ error: `Database error during case update: ${errorMessage}` }, 500);
         }
-        // --- End Database Update ---
 
     } catch (error: any) {
         console.error(`Error processing PUT /api/cases/${caseId}:`, error);
-        // Handle potential formData parsing errors specifically if needed
         return c.json({ error: 'An unexpected error occurred processing the request.' }, 500);
     }
 });
@@ -357,7 +342,6 @@ casesApp.delete('/:id', async (c) => {
     let imagePathToDelete: string | null = null;
 
     try {
-        // 1. Find the image path before deleting the case record
         const selectStmt = db.prepare('SELECT image_path FROM cases WHERE id = ?');
         const caseData = selectStmt.get(caseId) as { image_path: string | null } | null;
 
@@ -366,26 +350,22 @@ casesApp.delete('/:id', async (c) => {
         }
         imagePathToDelete = caseData.image_path;
 
-        // 2. Delete the case record (FK constraint handles case_items)
         const deleteStmt = db.prepare('DELETE FROM cases WHERE id = ?');
         const result = deleteStmt.run(caseId);
 
         if (result.changes === 0) {
-            // Should not happen if select worked, but good practice to check
             console.warn(`Case ID ${caseId} found but delete operation affected 0 rows.`);
             return c.json({ error: 'Case found but failed to delete.' }, 500);
         }
 
         console.log(`Case ID ${caseId} deleted successfully from database.`);
 
-        // 3. If an image path existed, try to delete the file
         if (imagePathToDelete) {
             try {
-                const fullPath = join('.', imagePathToDelete); // Assumes image_path starts with /uploads/...
+                const fullPath = join('.', imagePathToDelete);
                 await unlink(fullPath);
                 console.log(`Deleted associated case image: ${fullPath}`);
             } catch (unlinkError: any) {
-                // Log error but don't fail the request, DB deletion was successful
                 if (unlinkError.code === 'ENOENT') {
                      console.warn(`Associated image file not found, skipping deletion: ${imagePathToDelete}`);
                 } else {

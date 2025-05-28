@@ -16,6 +16,7 @@ interface CaseItem {
   image_url?: string | null;
   rules_text?: string | null; // Changed from rules to rules_text
   sound_url?: string | null;
+  showPercentageInOpener?: boolean; // <<< NEW FIELD
   // Add item_template_id if needed for any logic here, though maybe not
   item_template_id?: number; // Optional, might not be needed directly in opener
 }

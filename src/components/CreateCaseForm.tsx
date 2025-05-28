@@ -63,6 +63,7 @@ interface CaseItemState {
   display_color: string;     // New field
   isPercentageLocked: boolean; // Added for locking percentage
   override_rules_text: string; // Added for rules override
+  showPercentageInOpener: boolean; // <<< NEW FIELD
 }
 
 /** Counter-Strike rarity presets for color and base percentage chance */
@@ -227,6 +228,20 @@ function DraggableItemRow({ item, index, availableTemplates, isSaving, handleIte
                     <input type="color" id={`color_picker_${index}`} value={item.display_color} onChange={(e) => handleItemChange(index, 'display_color', e.target.value)} className="cs-input" style={{ padding: '2px', height: '30px', width: '40px', border: '1px solid var(--border-color)', cursor: 'pointer' }} required disabled={isSaving} />
                 </div>
                 {/* Remove Button */}
+                <div style={{ flex: '0 0 auto', marginLeft: '10px', alignSelf: 'center' }}>
+                    <input
+                        type="checkbox"
+                        id={`show_perc_opener_${index}`}
+                        checked={item.showPercentageInOpener}
+                        onChange={(e) => handleItemChange(index, 'showPercentageInOpener', e.target.checked)}
+                        disabled={isSaving}
+                        style={{ verticalAlign: 'middle', marginRight: '3px' }}
+                    />
+                    <label htmlFor={`show_perc_opener_${index}`} style={{ verticalAlign: 'middle', cursor: 'pointer', fontSize: '0.8em' }}>
+                        Show %
+                    </label>
+                </div>
+                {/* Remove Button */}
                 <div style={{ flex: '0 0 auto', marginLeft: 'auto' }}>
                     <StyledButton onClick={() => removeItem(index)} disabled={isSaving /* items.length <= 1 is handled by parent */} variant="danger" style={{ padding: '5px 10px', minWidth: 'auto' }}>Remove</StyledButton>
                 </div>
@@ -248,7 +263,7 @@ function CreateCaseForm() {
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
   const [items, setItems] = useState<CaseItemState[]>([
-    { id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '' },
+    { id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '', showPercentageInOpener: true },
   ]);
 
   // State for available data
@@ -320,11 +335,11 @@ function CreateCaseForm() {
 
       if (caseIdToLoad === null) {
           // Reset form if we stop editing or duplicating (or are creating new)
-          setCaseName('');
-          setCaseDescription('');
-          setItems([{ id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '' }]);
-          setCaseImageFile(null);
-          setSelectedExistingCaseImagePath('');
+                  setCaseName('');
+                  setCaseDescription('');
+                  setItems([{ id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '', showPercentageInOpener: true }]);
+                  setCaseImageFile(null);
+                  setSelectedExistingCaseImagePath('');
           setClearExistingCaseImage(false);
           setEditingCaseOriginalImagePath(null); // This will be set by duplication if needed
           if (caseImageInputRef.current) caseImageInputRef.current.value = '';
@@ -373,6 +388,7 @@ function CreateCaseForm() {
                   percentage_chance: item.percentage_chance,
                   display_color: item.display_color,
                   override_rules_text: item.rules_text ?? '', // Populate from fetched rules_text
+                  showPercentageInOpener: typeof (item as any).showPercentageInOpener === 'boolean' ? (item as any).showPercentageInOpener : true, // Load from backend, default true
                   isPercentageLocked: false, // Default to unlocked
               })));
 
@@ -486,6 +502,9 @@ function CreateCaseForm() {
             break;
         case 'override_rules_text':
             itemToUpdate.override_rules_text = typeof value === 'string' ? value : '';
+            break;
+        case 'showPercentageInOpener':
+            itemToUpdate.showPercentageInOpener = typeof value === 'boolean' ? value : true;
             break;
         default:
             console.warn(`Unhandled field change: ${field}`);
@@ -607,7 +626,7 @@ function CreateCaseForm() {
 
   // Function to add a new empty item row
   const addItem = () => {
-    setItems([...items, { id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '' }]);
+    setItems([...items, { id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '', showPercentageInOpener: true }]);
   };
 
   // Function to remove an item row
@@ -637,6 +656,15 @@ function CreateCaseForm() {
     // Note: We are NOT strictly enforcing the 100% sum here based on user feedback
 
     let imagePathToUse = selectedExistingCaseImagePath; // Default to current selection
+    // Ensure itemsPayload includes the new showPercentageInOpener field
+    const itemsPayload = itemsWithTemplates.map(({ item_template_id, override_name, percentage_chance, display_color, override_rules_text, showPercentageInOpener }) => ({
+        item_template_id: item_template_id,
+        override_name: override_name.trim() || null,
+        percentage_chance: percentage_chance || 0,
+        display_color: display_color || DEFAULT_ITEM_COLOR,
+        override_rules_text: override_rules_text.trim() || null,
+        showPercentageInOpener: showPercentageInOpener, // Include the new flag
+    }));
 
     // If duplicating and no new image choice has been made, use the source case's image.
     if (
@@ -656,14 +684,7 @@ function CreateCaseForm() {
         formData.append('description', caseDescription.trim());
     }
 
-    // Append items as JSON string using the new structure
-    const itemsPayload = itemsWithTemplates.map(({ item_template_id, override_name, percentage_chance, display_color, override_rules_text }) => ({
-        item_template_id: item_template_id, // Already validated non-null
-        override_name: override_name.trim() || null,
-        percentage_chance: percentage_chance || 0, // Ensure it's a number, default 0
-        display_color: display_color || DEFAULT_ITEM_COLOR, // Ensure it's a string, default color
-        override_rules_text: override_rules_text.trim() || null, // Add override_rules_text
-    }));
+    // Append items as JSON string (itemsPayload is already defined above with the new field)
     formData.append('items', JSON.stringify(itemsPayload));
 
     // Append image data
