@@ -8,6 +8,7 @@ import { db } from './db'; // Import the initialized db instance
 import itemTemplatesApp from './routes/itemTemplates';
 import casesApp from './routes/cases';
 import adminApp from './routes/admin';
+import faqApp from './routes/faq';
 
 // --- Hono App Setup ---
 const app = new Hono();
@@ -32,6 +33,7 @@ app.use('/uploads/*', serveStatic({ root: './' }));
 app.route('/api/item-templates', itemTemplatesApp);
 app.route('/api/cases', casesApp);
 app.route('/api', adminApp); // Mount admin routes directly under /api (e.g., /api/verify-admin)
+app.route('/api/faq', faqApp);
 
 // Root route
 app.get('/', (c) => c.text('Hono Server Running! Refactored Structure.'));
