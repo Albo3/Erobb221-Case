@@ -53,6 +53,10 @@ app.get('/api/existing-assets', (c) => {
 // Root route for health check
 app.get('/', (c) => c.text('Hono API Server is running!'));
 
+// Serve CSS from src/styles for the FAQ page. This is the only static content
+// the backend needs to serve directly, as Nginx handles the main frontend build.
+app.use('/styles/*', serveStatic({ root: './src' }));
+
 // --- Server Start ---
 const port = 3001;
 console.log(`Hono server listening on port ${port}`);
