@@ -2,7 +2,8 @@
   "name": "cline-code-nexus",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "copyfiles": "^2.4.1"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -11,7 +12,7 @@
     "dev:frontend": "set NODE_ENV=development&& bun run --hot src/index.tsx",
     "dev:backend": "set NODE_ENV=development&& bun run server/index.ts",
     "dev": "concurrently \"bun run dev:frontend\" \"bun run dev:backend\"",
-    "build": "bun build src/index.tsx --outdir ./build && xcopy public build /E /I /Y"
+    "build": "bun build src/index.tsx --outdir ./build && copyfiles -u 1 \"public/**/*\" build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
