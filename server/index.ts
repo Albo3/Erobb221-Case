@@ -50,40 +50,8 @@ app.get('/api/existing-assets', (c) => {
     }
 });
 
-// --- Static & Root File Serving ---
-
-// Explicitly serve robots.txt and sitemap.xml using Bun.file() to ensure they are not caught by the SPA fallback.
-// This is the most reliable method as it uses Bun's native, high-performance file serving.
-app.get('/robots.txt', (c) => {
-    try {
-        // Bun.file() automatically handles Content-Type for common extensions like .txt
-        return new Response(Bun.file('./public/robots.txt'));
-    } catch (error) {
-        console.error('Could not serve robots.txt:', error);
-        return c.notFound();
-    }
-});
-
-app.get('/sitemap.xml', (c) => {
-    try {
-        const sitemapFile = Bun.file('./public/sitemap.xml');
-        // We create a new Response to manually set the correct XML content-type, as it may not be inferred.
-        return new Response(sitemapFile, {
-            headers: { 'Content-Type': 'application/xml; charset=utf-8' },
-        });
-    } catch (error) {
-        console.error('Could not serve sitemap.xml:', error);
-        return c.notFound();
-    }
-});
-
-// Serve CSS from src/styles for the FAQ page
-app.use('/styles/*', serveStatic({ root: './src' }));
-
-// SPA Fallback: Serve static files from './public', and for any path that doesn't
-// match a file, it will serve the SPA entry point (e.g., index.html).
-// This MUST come after all other specific routes.
-app.use('/*', serveStatic({ root: './public' }));
+// Root route for health check
+app.get('/', (c) => c.text('Hono API Server is running!'));
 
 // --- Server Start ---
 const port = 3001;
