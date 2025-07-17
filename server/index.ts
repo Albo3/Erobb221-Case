@@ -35,11 +35,7 @@ app.route('/api/cases', casesApp);
 app.route('/api', adminApp); // Mount admin routes directly under /api (e.g., /api/verify-admin)
 app.route('/api/faq', faqApp);
 
-// Root route
-app.get('/', (c) => c.text('Hono Server Running! Refactored Structure.'));
-
 // GET /api/existing-assets - Fetch distinct existing image/sound paths from templates
-// (Moved here from itemTemplates.ts to keep the original /api/existing-assets path)
 app.get('/api/existing-assets', (c) => {
     console.log(`GET /api/existing-assets requested`);
     try {
@@ -53,6 +49,41 @@ app.get('/api/existing-assets', (c) => {
         return c.json({ error: 'Database error fetching existing assets.' }, 500);
     }
 });
+
+// --- Static & Root File Serving ---
+
+// Explicitly serve robots.txt and sitemap.xml using Bun.file() to ensure they are not caught by the SPA fallback.
+// This is the most reliable method as it uses Bun's native, high-performance file serving.
+app.get('/robots.txt', (c) => {
+    try {
+        // Bun.file() automatically handles Content-Type for common extensions like .txt
+        return new Response(Bun.file('./public/robots.txt'));
+    } catch (error) {
+        console.error('Could not serve robots.txt:', error);
+        return c.notFound();
+    }
+});
+
+app.get('/sitemap.xml', (c) => {
+    try {
+        const sitemapFile = Bun.file('./public/sitemap.xml');
+        // We create a new Response to manually set the correct XML content-type, as it may not be inferred.
+        return new Response(sitemapFile, {
+            headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+        });
+    } catch (error) {
+        console.error('Could not serve sitemap.xml:', error);
+        return c.notFound();
+    }
+});
+
+// Serve CSS from src/styles for the FAQ page
+app.use('/styles/*', serveStatic({ root: './src' }));
+
+// SPA Fallback: Serve static files from './public', and for any path that doesn't
+// match a file, it will serve the SPA entry point (e.g., index.html).
+// This MUST come after all other specific routes.
+app.use('/*', serveStatic({ root: './public' }));
 
 // --- Server Start ---
 const port = 3001;
