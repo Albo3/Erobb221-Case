@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'; // Added useLayoutEffect
+
+declare global {
+    interface Window {
+        gtag?: (type: 'event', eventName: string, eventParams: { [key: string]: any }) => void;
+    }
+}
 import { getApiUrl } from '../config';
 import StyledButton from './StyledButton';
 import UnboxedItemPopup from './UnboxedItemPopup'; // Import the popup component
@@ -238,6 +244,15 @@ function CaseOpener({ volume, onVolumeChange, onNewUnbox, selectedCaseId: select
   };
 
   const startSpin = () => {
+    // Fire Google Analytics event for opening a case
+    if (window.gtag && currentCaseData) {
+        window.gtag('event', 'ClickSpin', {
+            'event_category': 'Case Interaction',
+            'event_label': currentCaseData.name,
+            'case_id': currentCaseData.id
+        });
+    }
+
     // Check if spinning or if case data isn't loaded
     if (isSpinning || !currentCaseData || currentCaseData.items.length === 0) return;
 
