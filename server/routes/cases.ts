@@ -10,12 +10,12 @@ const casesApp = new Hono();
 
 // --- Case API Routes ---
 
-// GET /api/cases - Fetch list of all cases (ID, Name, image_path)
+// GET /api/cases - Fetch list of all active cases (ID, Name, image_path)
 casesApp.get('/', (c) => {
     console.log('GET /api/cases requested');
     try {
-        // Include image_path in the query
-        const stmt = db.prepare('SELECT id, name, image_path FROM cases ORDER BY created_at DESC');
+        // Include image_path in the query and filter for active cases
+        const stmt = db.prepare('SELECT id, name, image_path FROM cases WHERE is_active = 1 ORDER BY created_at DESC');
         const cases = stmt.all();
         return c.json(cases);
     } catch (dbError) {
@@ -35,9 +35,9 @@ casesApp.get('/:id', (c) => {
     }
 
     try {
-        // Include image_path in the select statement
-        const caseStmt = db.prepare('SELECT id, name, description, image_path FROM cases WHERE id = ?');
-        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null; image_path: string | null } | null;
+        // Include image_path and is_active in the select statement
+        const caseStmt = db.prepare('SELECT id, name, description, image_path, is_active FROM cases WHERE id = ?');
+        const caseDetails = caseStmt.get(id) as { id: number; name: string; description: string | null; image_path: string | null; is_active: number } | null;
 
         if (!caseDetails) {
             return c.json({ error: 'Case not found.' }, 404);
@@ -87,7 +87,11 @@ casesApp.get('/:id', (c) => {
         }));
 
 
-        const result = { ...caseDetails, items: items };
+        const result = {
+            ...caseDetails,
+            is_active: caseDetails.is_active === 1, // Convert to boolean
+            items: items
+        };
         return c.json(result);
 
     } catch (dbError) {
@@ -109,6 +113,7 @@ casesApp.post('/', async (c) => {
         const itemsJson = formData.get('items') as string; // Items array as JSON string
         const imageFile = formData.get('image_file') as File | null;
         const existingImagePath = formData.get('existing_image_path') as string | null;
+        const isActive = formData.get('is_active') === 'true';
 
         // --- Basic Validation ---
         if (!name || typeof name !== 'string' || name.trim() === '') {
@@ -137,7 +142,7 @@ casesApp.post('/', async (c) => {
         // --- End File Validation ---
 
         // --- Database Insertion (Transaction) ---
-        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path) VALUES (?, ?, ?) RETURNING id');
+        const insertCaseStmt = db.prepare('INSERT INTO cases (name, description, image_path, is_active) VALUES (?, ?, ?, ?) RETURNING id');
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
             (case_id, item_template_id, override_name, percentage_chance, display_color, override_rules_text, display_order, show_percentage_in_opener)
@@ -159,7 +164,8 @@ casesApp.post('/', async (c) => {
             const caseResult = insertCaseStmt.get(
                 name.trim(),
                 description?.trim() ?? null,
-                finalImagePath
+                finalImagePath,
+                isActive ? 1 : 0
             ) as { id: number } | null;
 
             if (!caseResult || typeof caseResult.id !== 'number') {
@@ -233,6 +239,7 @@ casesApp.put('/:id', async (c) => {
         const imageFile = formData.get('image_file') as File | null;
         const existingImagePath = formData.get('existing_image_path') as string | null;
         const clearImage = formData.get('clear_image') === 'true';
+        const isActive = formData.get('is_active') === 'true';
 
         if (!name || typeof name !== 'string' || name.trim() === '') {
             return c.json({ error: 'Case name is required.' }, 400);
@@ -256,7 +263,7 @@ casesApp.put('/:id', async (c) => {
         const imageValidationError = await validateUploadedFile(imageFile, 'image');
         if (imageValidationError) return c.json({ error: imageValidationError }, 400);
 
-        const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ?, image_path = ? WHERE id = ?');
+        const updateCaseStmt = db.prepare('UPDATE cases SET name = ?, description = ?, image_path = ?, is_active = ? WHERE id = ?');
         const deleteOldItemsStmt = db.prepare('DELETE FROM case_items WHERE case_id = ?');
         const insertItemLinkStmt = db.prepare(`
             INSERT INTO case_items
@@ -282,6 +289,7 @@ casesApp.put('/:id', async (c) => {
                 name.trim(),
                 description?.trim() ?? null,
                 finalImagePath,
+                isActive ? 1 : 0,
                 caseId
             );
 

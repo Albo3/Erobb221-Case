@@ -46,6 +46,7 @@ interface FullCaseData {
         rules_text: string | null; // Expect rules_text from backend
     }>;
     image_path: string | null;
+    is_active: boolean;
 }
 
 // Define structure for existing asset paths (only need images for cases)
@@ -262,6 +263,7 @@ function CreateCaseForm() {
   // Form state
   const [caseName, setCaseName] = useState('');
   const [caseDescription, setCaseDescription] = useState('');
+  const [isCaseActive, setIsCaseActive] = useState(true);
   const [items, setItems] = useState<CaseItemState[]>([
     { id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '', showPercentageInOpener: true },
   ]);
@@ -337,6 +339,7 @@ function CreateCaseForm() {
           // Reset form if we stop editing or duplicating (or are creating new)
                   setCaseName('');
                   setCaseDescription('');
+                  setIsCaseActive(true);
                   setItems([{ id: crypto.randomUUID(), item_template_id: null, override_name: '', percentage_chance: 0, display_color: DEFAULT_ITEM_COLOR, isPercentageLocked: false, override_rules_text: '', showPercentageInOpener: true }]);
                   setCaseImageFile(null);
                   setSelectedExistingCaseImagePath('');
@@ -373,6 +376,7 @@ function CreateCaseForm() {
                   setCaseName(data.name); // For editing
               }
               setCaseDescription(data.description ?? '');
+              setIsCaseActive(data.is_active);
               setEditingCaseOriginalImagePath(data.image_path); // Used for preview in both modes
 
               // Reset image inputs for both edit and duplicate, original path is now stored
@@ -694,6 +698,8 @@ function CreateCaseForm() {
         formData.append('existing_image_path', imagePathToUse);
     }
 
+    formData.append('is_active', String(isCaseActive));
+
     // Append clear flag if editing (and not duplicating, as clear applies to existing image)
     if (editingCaseId !== null && duplicatingCaseId === null && clearExistingCaseImage) {
         formData.append('clear_image', 'true');
@@ -926,9 +932,23 @@ function CreateCaseForm() {
           onChange={(e) => setCaseDescription(e.target.value)}
           placeholder="A short description of the case contents"
           className="cs-input"
-          style={{ width: '100%', minHeight: '60px' }}
+          style={{ width: '100%' }}
           disabled={isSaving}
         />
+      </div>
+
+      <div style={{ marginBottom: '15px' }}>
+          <input
+              type="checkbox"
+              id="isCaseActive"
+              checked={isCaseActive}
+              onChange={(e) => setIsCaseActive(e.target.checked)}
+              disabled={isSaving}
+              style={{ verticalAlign: 'middle', marginRight: '5px' }}
+          />
+          <label htmlFor="isCaseActive" style={{ verticalAlign: 'middle', cursor: 'pointer' }}>
+              Case is Active (Visible in opener)
+          </label>
       </div>
 
       {/* Case Image Input Section */}
