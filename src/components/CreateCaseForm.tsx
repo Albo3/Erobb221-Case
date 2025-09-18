@@ -303,8 +303,8 @@ function CreateCaseForm() {
                 .then(res => { if (!res.ok) throw new Error(`Templates fetch failed: ${res.status}`); return res.json(); })
                 .then((data: ItemTemplate[]) => setAvailableTemplates(data));
 
-            // Fetch Cases
-            const casesPromise = fetch(getApiUrl('/api/cases'))
+            // Fetch Cases (include all for admin dropdown)
+            const casesPromise = fetch(getApiUrl('/api/cases?include_all=true'))
                 .then(res => { if (!res.ok) throw new Error(`Cases fetch failed: ${res.status}`); return res.json(); })
                 .then((data: CaseInfo[]) => setAvailableCases(data));
 
@@ -739,9 +739,9 @@ function CreateCaseForm() {
       setDuplicatingCaseId(null); // Also clear duplication ID
       // The useEffect for these IDs changing will reset the form fields.
 
-      // Refetch case list
+      // Refetch case list (include all for admin dropdown)
        setIsLoadingCases(true);
-       fetch(getApiUrl('/api/cases'))
+       fetch(getApiUrl('/api/cases?include_all=true'))
          .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases after ${action}: ${res.status}`))
          .then(setAvailableCases)
          .catch(err => {
@@ -790,9 +790,9 @@ function CreateCaseForm() {
           // Reset form and editing state (duplicatingId should already be null if we are deleting)
           setEditingCaseId(null);
           // The useEffect for editingCaseId will reset the form.
-          // Refetch case list
+          // Refetch case list (include all for admin dropdown)
           setIsLoadingCases(true);
-          fetch(getApiUrl('/api/cases'))
+          fetch(getApiUrl('/api/cases?include_all=true'))
               .then(res => res.ok ? res.json() : Promise.reject(`Failed to refetch cases: ${res.status}`))
               .then(setAvailableCases)
               .catch(err => {

@@ -10,12 +10,19 @@ const casesApp = new Hono();
 
 // --- Case API Routes ---
 
-// GET /api/cases - Fetch list of all active cases (ID, Name, image_path)
+// GET /api/cases - Fetch list of cases. By default, only active cases.
+// Use ?include_all=true to fetch all cases (for admin panel).
 casesApp.get('/', (c) => {
-    console.log('GET /api/cases requested');
+    const includeAll = c.req.query('include_all') === 'true';
+    console.log(`GET /api/cases requested (include_all: ${includeAll})`);
     try {
-        // Include image_path in the query and filter for active cases
-        const stmt = db.prepare('SELECT id, name, image_path FROM cases WHERE is_active = 1 ORDER BY created_at DESC');
+        let query = 'SELECT id, name, image_path FROM cases';
+        if (!includeAll) {
+            query += ' WHERE is_active = 1';
+        }
+        query += ' ORDER BY created_at DESC';
+
+        const stmt = db.prepare(query);
         const cases = stmt.all();
         return c.json(cases);
     } catch (dbError) {
