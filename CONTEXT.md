@@ -25,6 +25,7 @@ caseAdmin!
  NODE_ENV=production bun build ./src/index.tsx --outdir ./build
 
  cp ./public/index.html ./build/ && cp -r ./public/sounds ./build/
+ pm2 reload erobb-backend
 ## Project Structure
 
 .

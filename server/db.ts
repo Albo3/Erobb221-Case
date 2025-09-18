@@ -257,6 +257,34 @@ if (currentVersion < DB_VERSION) {
     }
     // --- End Migration Logic for v9 ---
 
+    // --- Migration Logic for v10 ---
+    if (currentVersion < 10) {
+        console.log('Applying DB migration version 10: Add is_active to cases table...');
+        try {
+            db.exec('ALTER TABLE cases ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1'); // Default to true (1)
+            console.log('Successfully added is_active column to cases table.');
+            console.log('DB migration version 10 applied.');
+        } catch (migrationError: any) {
+            console.error('Failed during DB migration version 10:', migrationError);
+            // Check if column already exists from a partial run
+            try {
+                const checkStmt = db.prepare("PRAGMA table_info(cases)");
+                const columns = checkStmt.all() as Array<{ name: string }>;
+                if (columns.some(c => c.name === 'is_active')) {
+                    console.warn('Migration v10 (is_active) seems already applied. Skipping.');
+                    console.log('DB migration version 10 applied (skipped as column exists).');
+                } else {
+                    console.error('Irrecoverable error during migration v10. Manual intervention might be needed.');
+                    throw migrationError;
+                }
+            } catch (pragmaError) {
+                console.error('Migration v10: Error during PRAGMA check after initial alter error.', pragmaError);
+                throw migrationError; // Throw original migrationError
+            }
+        }
+    }
+    // --- End Migration Logic for v10 ---
+
     setDbVersion(DB_VERSION); // Update version only if all migrations succeed
 } else {
      console.log(`Database schema is up to date (v${DB_VERSION}).`);
