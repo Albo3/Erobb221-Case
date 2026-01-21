@@ -44,3 +44,5 @@ ethor.md
 /database.sqlite*
 database.sqlite-shm
 database.sqlite-wal
+
+CLAUDE.md

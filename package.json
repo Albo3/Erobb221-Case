@@ -6,7 +6,7 @@
     "copyfiles": "^2.4.1"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.8.3"
   },
   "scripts": {
     "dev:frontend": "set NODE_ENV=development&& bun run --hot src/index.tsx",
@@ -20,21 +20,21 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@types/bcrypt": "^5.0.2",
     "@types/marked": "^6.0.0",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.1",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
     "bcrypt": "^5.1.1",
     "buffer": "^6.0.3",
-    "bun": "^1.2.11",
-    "concurrently": "^9.1.2",
-    "hono": "^4.7.5",
-    "marked": "^16.0.0",
+    "bun": "^1.3.6",
+    "concurrently": "^9.2.1",
+    "hono": "^4.11.4",
+    "marked": "^16.4.2",
     "music-metadata-browser": "^2.5.11",
-    "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-syntax-highlighter": "^15.6.1",
-    "sharp": "^0.34.1"
+    "pino": "^9.14.0",
+    "pino-pretty": "^13.1.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-syntax-highlighter": "^15.6.6",
+    "sharp": "^0.34.5"
   }
 }
